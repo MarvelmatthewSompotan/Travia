@@ -4,17 +4,29 @@ import { PlanDetail } from './PlanDetail'
 
 const PLAN_ICONS = ['🏆', '💰', '⚖️']
 
-export function MyPlans({ savedPlans, onSwitchToPlanner }) {
+export function MyPlans({ savedPlans, onSwitchToPlanner, onDelete }) {
   const [openId, setOpenId] = useState(null)
   const open = savedPlans.find((sp) => sp.id === openId) || null
 
   if (open) {
     return (
-      <PlanDetail
-        section={open.plan}
-        onBack={() => setOpenId(null)}
-        savedIndicatorOnly
-      />
+      <div>
+        <PlanDetail
+          section={open.plan}
+          onBack={() => setOpenId(null)}
+          savedIndicatorOnly
+        />
+        {onDelete && (
+          <button
+            type="button"
+            className="my-plans__delete"
+            onClick={async () => {
+              await onDelete(open.id)
+              setOpenId(null)
+            }}
+          >Remove from My Plans</button>
+        )}
+      </div>
     )
   }
 
@@ -38,7 +50,7 @@ export function MyPlans({ savedPlans, onSwitchToPlanner }) {
           </span>
           <p className="my-plans__empty-text">
             Generate a plan, open it, then hit{' '}
-            <strong>Save This Plan</strong> to add it here.
+            <strong>Save plan</strong> to add it here.
           </p>
           <button className="my-plans__empty-cta" onClick={onSwitchToPlanner}>
             Plan a trip →
@@ -50,9 +62,9 @@ export function MyPlans({ savedPlans, onSwitchToPlanner }) {
             <PlanCard
               key={sp.id}
               icon={PLAN_ICONS[i % PLAN_ICONS.length]}
-              title={sp.plan.title}
-              brief={sp.plan.brief}
-              price={sp.plan.total_price}
+              title={sp.title}
+              brief={sp.brief}
+              price={sp.plan?.total_price}
               onClick={() => setOpenId(sp.id)}
             />
           ))}
