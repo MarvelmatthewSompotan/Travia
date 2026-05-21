@@ -86,7 +86,7 @@ export function Planner({ chat, savedPlanKeys, onSavePlan }) {
           </div>
         )}
 
-        {!isEmpty && pathMessages.length > 0 && (
+        {!isEmpty && (
           <div className="planner__messages">
             {pathMessages.map((m) => (
               <ChatMessage
@@ -133,15 +133,15 @@ export function Planner({ chat, savedPlanKeys, onSavePlan }) {
 
             {busy && !streaming && <TypingIndicator label={status || 'Working…'} />}
 
-            {error && (
-              <div className="planner__error">
-                <strong>Error:</strong> {error}
-              </div>
-            )}
-
             {pendingTrip && (
               <ConfirmForm pendingTrip={pendingTrip} onConfirm={confirmPendingTrip} disabled={busy} />
             )}
+          </div>
+        )}
+
+        {error && (
+          <div className="planner__error">
+            <strong>Error:</strong> {error}
           </div>
         )}
 

@@ -342,6 +342,9 @@ export function useChat({ onSessionsChanged } = {}) {
         parent_id: state.headMessageId,
         content: userMessage,
       })
+      // Set head to the user message immediately so the message + typing indicator render
+      // while Ollama processes. postAssistant will call setHead again with the assistant id.
+      await setHead(sessionId, userMsg.id)
 
       const { snapshot } = deriveStateAt([...state.allMessages, userMsg], userMsg.id)
       const history = buildPath([...state.allMessages, userMsg], userMsg.id)
