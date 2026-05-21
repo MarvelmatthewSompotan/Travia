@@ -1,0 +1,129 @@
+.prev-chats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 12px;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.prev-chats__toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  color: var(--ink-faint);
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 11px;
+  cursor: pointer;
+}
+.prev-chats__toggle:hover { color: var(--ink-soft); }
+
+.prev-chats__caret { transition: transform 0.15s ease; }
+.prev-chats__caret--open { transform: rotate(90deg); }
+
+.prev-chats__count {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-faint);
+}
+
+.prev-chats__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow-y: auto;
+  min-height: 0;
+}
+.prev-chats__body::-webkit-scrollbar { width: 6px; }
+.prev-chats__body::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+
+.prev-chats__new {
+  background: var(--sky-soft);
+  color: var(--sky-deep);
+  border: none;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  margin: 4px 4px 8px;
+}
+.prev-chats__new:hover { background: rgba(47, 111, 237, 0.18); }
+
+.prev-chats__empty {
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  padding: 4px 11px;
+}
+
+.prev-chats__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.prev-chats__item {
+  display: flex;
+  align-items: stretch;
+  border-radius: 9px;
+}
+.prev-chats__item:hover { background: var(--surface-2); }
+.prev-chats__item--active { background: var(--sky-soft); }
+.prev-chats__item--active .prev-chats__title { color: var(--sky-deep); }
+
+.prev-chats__item-main {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  padding: 7px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.prev-chats__title {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prev-chats__time {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+.prev-chats__del {
+  background: none;
+  border: none;
+  color: var(--ink-faint);
+  padding: 0 8px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+.prev-chats__item:hover .prev-chats__del { opacity: 1; }
+.prev-chats__del:hover { color: var(--danger); }
