@@ -352,7 +352,7 @@ export function normalizeTripInfo(rawInfo) {
 
 // Fetches flights/places/hotels in parallel for a normalized tripInfo.
 export async function fetchTripOptions(info) {
-  getApiKey()
+  if (!MOCK) getApiKey()
   const [flightsResult, placesResult, hotelsResult] = await Promise.allSettled([
     searchFlights(info.departure_iata, info.arrival_iata, info.outbound_date, info.return_date),
     searchPlaces(info.destination_name),
