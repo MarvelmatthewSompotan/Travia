@@ -1,0 +1,30 @@
+.orb {
+  display: inline-block;
+  border-radius: 50%;
+  position: relative;
+  background:
+    radial-gradient(circle at 32% 30%, #fff 0%, transparent 28%),
+    conic-gradient(from 210deg, var(--sky), var(--mint), var(--sun), var(--sky));
+  box-shadow:
+    0 14px 40px rgba(47, 111, 237, 0.28),
+    inset 0 0 22px rgba(255, 255, 255, 0.45);
+  animation: orb-float 6s ease-in-out infinite;
+}
+
+.orb::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  border: 1px dashed rgba(47, 111, 237, 0.30);
+  animation: orb-spin 22s linear infinite;
+}
+
+@keyframes orb-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-9px); }
+}
+
+@keyframes orb-spin {
+  to { transform: rotate(360deg); }
+}

@@ -1,0 +1,30 @@
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 4px 8px;
+}
+
+.logo__mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: linear-gradient(150deg, var(--sky), var(--sky-deep));
+  display: grid;
+  place-items: center;
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(47, 111, 237, 0.32);
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.logo__mark svg { width: 19px; height: 19px; }
+
+.logo__name {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.logo__name b { color: var(--sky); font-weight: 600; }
