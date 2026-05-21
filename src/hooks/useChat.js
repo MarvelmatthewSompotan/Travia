@@ -86,15 +86,14 @@ function planKeyOf(plan, sessionId) {
 async function streamNarrative(system, prompt, dispatch, signal) {
   const tempId = `stream-${Date.now()}`
   dispatch({ type: 'streaming-start', tempId })
-  let full = ''
   try {
-    full = await ollamaStream(system, prompt, (chunk) => {
+    const full = await ollamaStream(system, prompt, (chunk) => {
       dispatch({ type: 'streaming-chunk', chunk })
     }, { signal })
+    return (full ?? '').trim()
   } finally {
     dispatch({ type: 'streaming-stop' })
   }
-  return full.trim()
 }
 
 export function useChat({ onSessionsChanged } = {}) {
@@ -551,42 +550,46 @@ export function useChat({ onSessionsChanged } = {}) {
 // Hook for the sidebar's session list.
 export function useSessionsList(refreshNonce) {
   const [sessions, setSessions] = useState([])
-  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
     api.listSessions()
-      .then((rows) => { if (!cancelled) setSessions(rows) })
+      .then((rows) => { if (!cancelled) setSessions(rows ?? []) })
       .catch(() => { if (!cancelled) setSessions([]) })
-      .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [refreshNonce])
 
-  return { sessions, loading }
+  return { sessions }
 }
 
 // Hook for saved plans (My Plans).
 export function useSavedPlans(refreshNonce) {
   const [plans, setPlans] = useState([])
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
   const reload = useCallback(() => {
-    setLoading(true)
-    setError(null)
     return api.listPlans()
-      .then(setPlans)
+      .then((rows) => { setPlans(rows ?? []); setError(null) })
       .catch((e) => setError(e.message))
-      .finally(() => setLoading(false))
   }, [])
 
-  useEffect(() => { reload() }, [reload, refreshNonce])
+  useEffect(() => {
+    let cancelled = false
+    api.listPlans()
+      .then((rows) => { if (!cancelled) { setPlans(rows ?? []); setError(null) } })
+      .catch((e) => { if (!cancelled) setError(e.message) })
+    return () => { cancelled = true }
+  }, [refreshNonce])
 
-  return { plans, loading, error, reload, deletePlan: async (id) => {
-    await api.deletePlan(id)
-    return reload()
-  } }
+  return {
+    plans,
+    error,
+    reload,
+    deletePlan: async (id) => {
+      await api.deletePlan(id)
+      return reload()
+    },
+  }
 }
 
 export function childrenOfMessage(allMessages, parentId) {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ChatView } from './components/ChatView'
 import { MyPlans } from './components/MyPlans'
 import { PreviousChats } from './components/PreviousChats'
