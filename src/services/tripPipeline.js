@@ -1,3 +1,13 @@
+import {
+  MOCK_FLIGHTS,
+  MOCK_HOTELS,
+  MOCK_NARRATIVE,
+  MOCK_PLACES,
+  MOCK_TRIP_INFO,
+} from './mockData.js'
+
+const MOCK = import.meta.env.VITE_MOCK_MODE === 'true'
+
 const OLLAMA_MODEL = 'llama3.2'
 const OLLAMA_URL = 'http://localhost:11434/api/generate'
 const SEARCHAPI_BASE = 'https://www.searchapi.io/api/v1/search'
@@ -63,6 +73,13 @@ export async function ollamaGenerate(system, prompt, { signal } = {}) {
 // Streams a free-form (non-JSON) response token-by-token.
 // Calls onChunk(deltaText) for each piece; resolves with the full text.
 export async function ollamaStream(system, prompt, onChunk, { signal } = {}) {
+  if (MOCK) {
+    for (const word of MOCK_NARRATIVE.split(' ')) {
+      await new Promise((r) => setTimeout(r, 40))
+      onChunk?.(word + ' ')
+    }
+    return MOCK_NARRATIVE
+  }
   const res = await fetch(OLLAMA_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -105,6 +122,7 @@ export async function ollamaStream(system, prompt, onChunk, { signal } = {}) {
 }
 
 export async function extractTripInfo(userPrompt, opts) {
+  if (MOCK) return { ...MOCK_TRIP_INFO }
   const today = new Date().toISOString().split('T')[0]
   const system = `Extract travel details from the user's trip description. Today's date is ${today}.
 Return ONLY a valid JSON object with exactly these fields. Use null for anything the user did NOT state — do not guess.
@@ -132,6 +150,7 @@ export function getMissingFields(info) {
 }
 
 export async function searchFlights(departureIata, arrivalIata, outboundDate, returnDate) {
+  if (MOCK) return MOCK_FLIGHTS
   const params = new URLSearchParams({
     engine: 'google_flights',
     departure_id: String(departureIata || '').toUpperCase(),
@@ -180,6 +199,7 @@ export async function searchFlights(departureIata, arrivalIata, outboundDate, re
 }
 
 export async function searchPlaces(destinationName) {
+  if (MOCK) return MOCK_PLACES
   const params = new URLSearchParams({
     engine: 'google_maps',
     q: `top tourist attractions in ${destinationName}`,
@@ -203,6 +223,7 @@ export async function searchPlaces(destinationName) {
 }
 
 export async function searchHotels(destinationName, checkIn, checkOut) {
+  if (MOCK) return MOCK_HOTELS
   const params = new URLSearchParams({
     engine: 'google_hotels',
     q: `hotels in ${destinationName}`,
