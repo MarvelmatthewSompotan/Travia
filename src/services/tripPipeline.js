@@ -1,7 +1,6 @@
 import {
   MOCK_FLIGHTS,
   MOCK_HOTELS,
-  MOCK_NARRATIVE,
   MOCK_PLACES,
   MOCK_TRIP_INFO,
 } from './mockData.js'
@@ -73,13 +72,6 @@ export async function ollamaGenerate(system, prompt, { signal } = {}) {
 // Streams a free-form (non-JSON) response token-by-token.
 // Calls onChunk(deltaText) for each piece; resolves with the full text.
 export async function ollamaStream(system, prompt, onChunk, { signal } = {}) {
-  if (MOCK) {
-    for (const word of MOCK_NARRATIVE.split(' ')) {
-      await new Promise((r) => setTimeout(r, 40))
-      onChunk?.(word + ' ')
-    }
-    return MOCK_NARRATIVE
-  }
   const res = await fetch(OLLAMA_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
