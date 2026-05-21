@@ -1,12 +1,12 @@
-import { useState, useEffect, useMemo } from 'react'
-import { TravelPlanner } from './components/TravelPlanner'
+import { useEffect, useMemo, useState } from 'react'
+import { ChatView } from './components/ChatView'
 import { MyPlans } from './components/MyPlans'
+import { PreviousChats } from './components/PreviousChats'
 import { Toast } from './components/Toast'
-import { planKeyFor } from './lib/planKey'
+import { useChat, useSavedPlans, useSessionsList } from './hooks/useChat'
 import './App.css'
 
 const TODAY = new Date().toISOString().split('T')[0]
-const STORAGE_KEY = 'rag-gfs:saved-plans'
 
 const HEADER_LABELS = {
   planner: 'AI Travel Planner',
@@ -40,39 +40,31 @@ function App() {
   const [activeTab, setActiveTab] = useState('planner')
   const [toast, setToast] = useState(null)
 
-  const [savedPlans, setSavedPlans] = useState(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      return raw ? JSON.parse(raw) : []
-    } catch {
-      return []
-    }
-  })
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(savedPlans))
-    } catch {
-      /* ignore quota / disabled storage */
-    }
-  }, [savedPlans])
-
-  const savedKeys = useMemo(
-    () => new Set(savedPlans.map((sp) => planKeyFor(sp.plan))),
-    [savedPlans],
-  )
-
   const showToast = (msg) => {
     setToast(msg)
     setTimeout(() => setToast(null), 3000)
   }
 
-  const handleSavePlan = (plan) => {
-    const key = planKeyFor(plan)
-    if (savedKeys.has(key)) return
-    const entry = { id: `${key}-${Date.now()}`, plan, savedAt: new Date().toISOString() }
-    setSavedPlans((prev) => [entry, ...prev])
-    showToast(`Saved “${plan.title}” to My Plans`)
+  const chat = useChat({ onSessionsChanged: () => {} })
+  const { sessions } = useSessionsList(chat.refreshNonce)
+  const { plans: savedPlans, reload: reloadPlans, deletePlan } = useSavedPlans(chat.refreshNonce)
+
+  const savedPlanKeys = useMemo(
+    () => new Set(savedPlans.map((p) => p.plan_key)),
+    [savedPlans],
+  )
+
+  const handleSavePlan = async () => {
+    const saved = await chat.savePlan()
+    if (saved) {
+      await reloadPlans()
+      showToast(`Saved “${saved.title}” to My Plans`)
+    }
+  }
+
+  const handlePickSession = async (id) => {
+    setActiveTab('planner')
+    await chat.loadSession(id)
   }
 
   const [form, setForm] = useState({
@@ -164,7 +156,15 @@ function App() {
           )}
         </nav>
 
-        <div className="app-shell__footer">Local Ollama · SearchAPI</div>
+        <PreviousChats
+          sessions={sessions}
+          activeId={chat.sessionId}
+          onPick={handlePickSession}
+          onDelete={chat.deleteSession}
+          onNewChat={() => { setActiveTab('planner'); chat.newSession() }}
+        />
+
+        <div className="app-shell__footer">Local Ollama · SearchAPI · Laravel</div>
       </aside>
 
       <main className="app-shell__main">
@@ -176,13 +176,17 @@ function App() {
 
         <div className="container">
           {activeTab === 'planner' && (
-            <TravelPlanner savedKeys={savedKeys} onSavePlan={handleSavePlan} />
+            <ChatView
+              chat={{ ...chat, savePlan: handleSavePlan }}
+              savedPlanKeys={savedPlanKeys}
+            />
           )}
 
           {activeTab === 'plans' && (
             <MyPlans
               savedPlans={savedPlans}
               onSwitchToPlanner={() => setActiveTab('planner')}
+              onDelete={deletePlan}
             />
           )}
 
