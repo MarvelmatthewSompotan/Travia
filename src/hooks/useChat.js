@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
-import { api } from '../lib/api'
+import { api } from '../services/api'
 import {
   assemblePlan,
   extractTripInfo,
@@ -8,9 +8,9 @@ import {
   normalizeTripInfo,
   ollamaStream,
   selectPlans,
-} from '../lib/tripPipeline'
-import { refinePlan } from '../lib/refinePlan'
-import { buildPath, childrenOf, deepestDescendant } from '../lib/chatTree'
+} from '../services/tripPipeline'
+import { refinePlan } from '../services/refinePlan'
+import { buildPath, childrenOf, deepestDescendant } from '../services/chatTree'
 
 const PLAN_KEYS = ['best', 'budget', 'balanced']
 
