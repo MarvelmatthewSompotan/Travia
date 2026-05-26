@@ -1,8 +1,17 @@
 const BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
 
+function getHeaders() {
+  const token = localStorage.getItem('rag_gfs_token')
+  return {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  }
+}
+
 async function request(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', ...(options.headers || {}) },
+    headers: { ...getHeaders(), ...(options.headers || {}) },
     ...options,
   })
   if (!res.ok) {
@@ -14,6 +23,11 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  register: (data) => request('/api/auth/register', { method: 'POST', body: JSON.stringify(data) }),
+  login: (data) => request('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+  logout: () => request('/api/auth/logout', { method: 'POST' }),
+  me: () => request('/api/auth/me'),
+
   listSessions: () => request('/api/sessions'),
   createSession: (data = {}) =>
     request('/api/sessions', { method: 'POST', body: JSON.stringify(data) }),

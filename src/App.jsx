@@ -5,14 +5,17 @@ import { PreviousChats } from './components/Molecules/PreviousChats/PreviousChat
 import { Toast } from './components/Atoms/Toast/Toast'
 import { Planner } from './components/Pages/Planner/Planner'
 import { MyPlans } from './components/Pages/MyPlans/MyPlans'
+import LoginPage from './components/Pages/LoginPage/LoginPage'
+import RegisterPage from './components/Pages/RegisterPage/RegisterPage'
 import { useChat, useSavedPlans, useSessionsList } from './hooks/useChat'
+import { useAuth } from './hooks/useAuth'
 
 const NAV_ITEMS = [
   { id: 'planner', label: 'AI Travel Planner' },
   { id: 'plans',   label: 'My Plans' },
 ]
 
-function App() {
+function AuthedApp({ auth }) {
   const [activeTab, setActiveTab] = useState('planner')
   const [toast, setToast] = useState(null)
 
@@ -34,7 +37,7 @@ function App() {
     const saved = await chat.savePlan()
     if (saved) {
       await reloadPlans()
-      showToast(`Saved “${saved.title}” to My Plans`)
+      showToast(`Saved "${saved.title}" to My Plans`)
     }
   }
 
@@ -46,6 +49,10 @@ function App() {
   const handleNewChat = () => {
     setActiveTab('planner')
     chat.newSession()
+  }
+
+  const handleLogout = async () => {
+    await auth.logout()
   }
 
   const items = NAV_ITEMS.map((item) =>
@@ -66,7 +73,7 @@ function App() {
   )
 
   return (
-    <AppShell sidebarMain={sidebarMain}>
+    <AppShell sidebarMain={sidebarMain} user={auth.user} onLogout={handleLogout}>
       {activeTab === 'planner' && (
         <Planner
           chat={chat}
@@ -84,6 +91,30 @@ function App() {
       <Toast message={toast} />
     </AppShell>
   )
+}
+
+function App() {
+  const auth = useAuth()
+  const [authView, setAuthView] = useState('login')
+
+  if (!auth.isAuthenticated) {
+    if (authView === 'register') {
+      return (
+        <RegisterPage
+          onRegister={auth.register}
+          onGoLogin={() => setAuthView('login')}
+        />
+      )
+    }
+    return (
+      <LoginPage
+        onLogin={auth.login}
+        onGoRegister={() => setAuthView('register')}
+      />
+    )
+  }
+
+  return <AuthedApp auth={auth} />
 }
 
 export default App

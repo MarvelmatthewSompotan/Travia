@@ -10,7 +10,7 @@ class ChatSession extends Model
 {
     use HasUuids;
 
-    protected $fillable = ['id', 'title', 'head_message_id'];
+    protected $fillable = ['id', 'user_id', 'title', 'head_message_id'];
 
     protected $keyType = 'string';
     public $incrementing = false;
