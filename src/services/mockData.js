@@ -180,8 +180,13 @@ export const MOCK_TRIPADVISOR_PLACES = [
   },
 ]
 
+// ── Ready confirmation ───────────────────────────────────────────────────────
+// Returned directly by generateReadyConfirmation() in mock mode.
+export const MOCK_READY_CONFIRMATION =
+  "Perfect, I have everything I need — searching for flights, hotels, and places now!"
+
 // ── Streaming narrative ──────────────────────────────────────────────────────
 // Emitted token-by-token by ollamaStream() in mock mode so the streaming UI runs.
 export const MOCK_NARRATIVE =
-  "Here are three travel plans I put together for your 3-day Bali trip! " +
-  "Pick the one that suits you best, or let me know if you'd like to adjust anything."
+  "Here's your Bali trip plan! I've put together a balanced mix of flights, hotel, and places based on your preferences. " +
+  "What kind of experience are you going for — relaxed beach vibes, a food adventure, luxury, or something else?"

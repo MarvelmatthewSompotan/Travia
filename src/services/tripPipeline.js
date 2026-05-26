@@ -1,7 +1,9 @@
 import {
   MOCK_FLIGHTS,
   MOCK_HOTELS,
+  MOCK_NARRATIVE,
   MOCK_PLACES,
+  MOCK_READY_CONFIRMATION,
   MOCK_TRIPADVISOR_PLACES,
   MOCK_TRIP_INFO,
 } from './mockData.js'
@@ -69,6 +71,15 @@ export async function ollamaGenerate(system, prompt, { signal } = {}) {
 // Streams a free-form (non-JSON) response token-by-token.
 // Calls onChunk(deltaText) for each piece; resolves with the full text.
 export async function ollamaStream(system, prompt, onChunk, { signal } = {}) {
+  if (MOCK) {
+    for (const word of MOCK_NARRATIVE.split(' ')) {
+      if (signal?.aborted) break
+      await new Promise((r) => setTimeout(r, 40))
+      onChunk?.(word + ' ')
+    }
+    return MOCK_NARRATIVE
+  }
+
   const res = await fetch(OLLAMA_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -199,6 +210,7 @@ Write a natural follow-up question.`
 }
 
 export async function generateReadyConfirmation(tripContext, opts) {
+  if (MOCK) return MOCK_READY_CONFIRMATION
   const system =
     'You are a friendly travel assistant. In one short sentence, confirm you have all the details and are now searching. Be warm and brief.'
   const prompt = `Trip: ${tripContext.departure_city || tripContext.departure_iata} → ${tripContext.destination_name}, ${tripContext.trip_duration_days} day(s) from ${tripContext.outbound_date || 'soon'}.`
