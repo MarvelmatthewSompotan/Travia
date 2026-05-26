@@ -1,9 +1,12 @@
 import { useState } from 'react'
 import { PlanCard } from '../../Molecules/PlanCard/PlanCard'
 import { PlanDetail } from '../../Molecules/PlanDetail/PlanDetail'
+import suitcaseIcon from '../../../assets/icons/u_suitcase-alt.svg'
+import mapIcon from '../../../assets/icons/u_map-marker-alt.svg'
+import planeIcon from '../../../assets/icons/u_plane-fly.svg'
 import './MyPlans.css'
 
-const PLAN_ICONS = ['🏆', '💰', '⚖️']
+const PLAN_ICON_SRCS = [suitcaseIcon, mapIcon, planeIcon]
 const PLAN_TONES = ['a', 'b', 'c']
 
 export function MyPlans({ savedPlans, onSwitchToPlanner, onDelete }) {
@@ -63,7 +66,7 @@ export function MyPlans({ savedPlans, onSwitchToPlanner, onDelete }) {
           {savedPlans.map((sp, i) => (
             <PlanCard
               key={sp.id}
-              icon={PLAN_ICONS[i % PLAN_ICONS.length]}
+              icon={<img src={PLAN_ICON_SRCS[i % PLAN_ICON_SRCS.length]} alt="" aria-hidden="true" className="plan-card__icon-img" />}
               tone={PLAN_TONES[i % PLAN_TONES.length]}
               title={sp.title}
               brief={sp.brief}

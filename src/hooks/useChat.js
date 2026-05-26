@@ -4,15 +4,16 @@ import {
   assemblePlan,
   extractTripInfo,
   fetchTripOptions,
+  generateExperiencePrompt,
+  generatePlan,
   getMissingFields,
   normalizeTripInfo,
   ollamaStream,
-  selectPlans,
+  parseExperienceType,
 } from '../services/tripPipeline'
 import { refinePlan } from '../services/refinePlan'
 import { buildPath, childrenOf, deepestDescendant } from '../services/chatTree'
 
-const PLAN_KEYS = ['best', 'budget', 'balanced']
 
 function initialState() {
   return {
@@ -80,7 +81,8 @@ function deriveStateAt(allMessages, headId) {
 }
 
 function planKeyOf(plan, sessionId) {
-  return `${sessionId}::${plan?.title ?? ''}::${plan?.total_price ?? ''}`
+  const expType = plan?.experience_type || 'balanced'
+  return `${sessionId}::${expType}::${Date.now()}`
 }
 
 async function streamNarrative(system, prompt, dispatch, signal) {
@@ -166,7 +168,7 @@ export function useChat({ onSessionsChanged } = {}) {
   }
 
   // --- Core: run the pipeline from a given user message id ---
-  // Mode: 'intake' (no plans yet) | 'regenerate' (plans exist, re-pick) | 'refine' (one plan selected)
+  // Modes: 'intake' | 'experience' | 'refine'
   async function runAssistantTurn({
     sessionId,
     parentUserId,
@@ -175,10 +177,10 @@ export function useChat({ onSessionsChanged } = {}) {
     snapshot,
     signal,
   }) {
-    // Decide mode
+    // Determine mode from snapshot
     let mode = 'intake'
-    if (snapshot?.selected_plan) mode = 'refine'
-    else if (snapshot?.cached_options) mode = 'regenerate'
+    if (snapshot?.current_plan && !snapshot?.experience_confirmed) mode = 'experience'
+    else if (snapshot?.current_plan && snapshot?.experience_confirmed) mode = 'refine'
 
     if (mode === 'intake') {
       dispatch({ type: 'set-status', status: 'Analyzing your trip…' })
@@ -192,37 +194,14 @@ export function useChat({ onSessionsChanged } = {}) {
       return await runIntake({ sessionId, parentUserId, tripInfo: info, signal })
     }
 
-    if (mode === 'regenerate') {
-      const tripInfo = snapshot.trip_context
-      const cached = snapshot.cached_options
-      dispatch({ type: 'set-status', status: 'Re-running plan selection…' })
-      const selections = await selectPlans(tripInfo, cached.flights, cached.places, cached.hotels, { signal })
-      const plans = PLAN_KEYS.map((k) => assemblePlan(selections[k], tripInfo, cached.flights, cached.places, cached.hotels, cached.flightError))
-      const note = await streamNarrative(
-        'You are a concise travel assistant. In 2 short sentences, tell the user you regenerated 3 plans based on their latest message, and name the headline pick.',
-        `User: ${userMessage}\nPlans: ${plans.map((p) => p.title).join(', ')}`,
-        dispatch,
-        signal,
-      ).catch(() => '')
-      dispatch({ type: 'set-status', status: '' })
-      return await postAssistant({
-        sessionId,
-        parentUserId,
-        content: note || `I regenerated 3 plans: ${plans.map((p) => p.title).join(', ')}.`,
-        plan_snapshot: plans,
-        state_snapshot: {
-          trip_context: tripInfo,
-          cached_options: cached,
-          selected_plan_index: null,
-          selected_plan: null,
-        },
-      })
+    if (mode === 'experience') {
+      return await runExperienceMode({ sessionId, parentUserId, userMessage, snapshot, signal })
     }
 
     // mode === 'refine'
     const tripInfo = snapshot.trip_context
     let cached = snapshot.cached_options
-    let currentPlan = snapshot.selected_plan
+    let currentPlan = snapshot.current_plan
     dispatch({ type: 'set-status', status: 'Refining your plan…' })
     const decision = await refinePlan({
       tripInfo,
@@ -240,22 +219,23 @@ export function useChat({ onSessionsChanged } = {}) {
       const merged = normalizeTripInfo({ ...tripInfo, ...decision.changes })
       dispatch({ type: 'set-status', status: 'Searching flights, hotels & places for the new details…' })
       const fresh = await fetchTripOptions(merged)
-      cached = fresh
+      cached = { ...fresh, flightError: fresh.flightError }
       nextTripInfo = merged
-      // Re-pick a balanced plan based on fresh options + the original tier mood (assume "balanced")
       dispatch({ type: 'set-status', status: 'Picking a fresh plan…' })
-      const selections = await selectPlans(merged, fresh.flights, fresh.places, fresh.hotels, { signal })
-      currentPlan = assemblePlan(selections.balanced, merged, fresh.flights, fresh.places, fresh.hotels, fresh.flightError)
+      const sel = await generatePlan(merged, fresh, currentPlan?.experience_type || 'balanced', { signal })
+      currentPlan = assemblePlan(sel, merged, fresh.flights, fresh.places, fresh.hotels, fresh.flightError)
+      currentPlan.experience_type = sel.experience_type
     } else {
-      // repick
       const reSel = {
         title: currentPlan?.title || 'Refined plan',
         brief: currentPlan?.brief || '',
+        experience_type: currentPlan?.experience_type || 'balanced',
         flight: decision.flight,
         hotel: decision.hotel,
         places: decision.places,
       }
       currentPlan = assemblePlan(reSel, tripInfo, cached.flights, cached.places, cached.hotels, cached.flightError)
+      currentPlan.experience_type = reSel.experience_type
     }
 
     const note = await streamNarrative(
@@ -274,8 +254,8 @@ export function useChat({ onSessionsChanged } = {}) {
       state_snapshot: {
         trip_context: nextTripInfo,
         cached_options: cached,
-        selected_plan_index: snapshot.selected_plan_index,
-        selected_plan: currentPlan,
+        current_plan: currentPlan,
+        experience_confirmed: true,
       },
     })
   }
@@ -284,12 +264,61 @@ export function useChat({ onSessionsChanged } = {}) {
     const info = normalizeTripInfo(tripInfo)
     dispatch({ type: 'set-status', status: 'Searching flights, hotels & places…' })
     const cached = await fetchTripOptions(info)
-    dispatch({ type: 'set-status', status: 'Creating your 3 recommendations…' })
-    const selections = await selectPlans(info, cached.flights, cached.places, cached.hotels, { signal })
-    const plans = PLAN_KEYS.map((k) => assemblePlan(selections[k], info, cached.flights, cached.places, cached.hotels, cached.flightError))
+    dispatch({ type: 'set-status', status: 'Building your trip plan…' })
+    const selection = await generatePlan(info, cached, 'balanced', { signal })
+    const plan = assemblePlan(selection, info, cached.flights, cached.places, cached.hotels, cached.flightError)
+    plan.experience_type = 'balanced'
+
+    // Stream plan presentation
     const note = await streamNarrative(
-      'You are a concise travel assistant. In 2 short sentences, present 3 travel plan tiers (Best / Budget / Balanced) and invite the user to pick one to refine.',
-      `Trip: ${info.departure_city || info.departure_iata} → ${info.destination_name}, ${info.trip_duration_days} days.\nPlan titles: ${plans.map((p) => p.title).join(', ')}.`,
+      'You are a concise travel assistant. In 2 short sentences, present this balanced trip plan and then ask what kind of experience the user wants.',
+      `Trip: ${info.departure_city || info.departure_iata} → ${info.destination_name}, ${info.trip_duration_days} days. Plan: ${plan.title}.`,
+      dispatch,
+      signal,
+    ).catch(() => '')
+
+    // Stream the experience prompt as a natural follow-up
+    const expPrompt = await generateExperiencePrompt(plan, info, { signal }).catch(() => '')
+    dispatch({ type: 'set-status', status: '' })
+
+    return await postAssistant({
+      sessionId,
+      parentUserId,
+      content: [note, expPrompt].filter(Boolean).join('\n\n') || `Here is your trip plan: ${plan.title}. What kind of experience are you going for?`,
+      plan_snapshot: [plan],
+      state_snapshot: {
+        trip_context: info,
+        cached_options: cached,
+        current_plan: plan,
+        experience_confirmed: false,
+      },
+    })
+  }
+
+  async function runExperienceMode({ sessionId, parentUserId, userMessage, snapshot, signal }) {
+    const { trip_context: tripInfo, cached_options: cached } = snapshot
+    dispatch({ type: 'set-status', status: 'Interpreting your experience preference…' })
+    const { experience_type } = await parseExperienceType(userMessage, { signal })
+
+    dispatch({ type: 'set-status', status: `Building ${experience_type} plan…` })
+    const selection = await generatePlan(tripInfo, cached, experience_type, { signal })
+    const plan = assemblePlan(selection, tripInfo, cached.flights, cached.places, cached.hotels, cached.flightError)
+    plan.experience_type = experience_type
+
+    // Auto-save this plan to the plans table
+    const key = planKeyOf(plan, sessionId)
+    await api.savePlan({
+      session_id: sessionId,
+      plan_key: key,
+      experience_type,
+      title: plan.title,
+      brief: plan.brief,
+      plan,
+    }).catch(() => {})
+
+    const note = await streamNarrative(
+      'You are a concise travel assistant.',
+      `The user wanted a ${experience_type} experience. You generated plan: ${plan.title}. In 2 sentences, present it and mention they can ask for another vibe (budget, luxury, food, adventure, etc.) or start refining this one.`,
       dispatch,
       signal,
     ).catch(() => '')
@@ -298,13 +327,13 @@ export function useChat({ onSessionsChanged } = {}) {
     return await postAssistant({
       sessionId,
       parentUserId,
-      content: note || `Here are 3 options: ${plans.map((p) => p.title).join(', ')}. Pick one to refine it further.`,
-      plan_snapshot: plans,
+      content: note || `Here is your ${experience_type} plan: ${plan.title}.`,
+      plan_snapshot: [plan],
       state_snapshot: {
-        trip_context: info,
+        trip_context: tripInfo,
         cached_options: cached,
-        selected_plan_index: null,
-        selected_plan: null,
+        current_plan: plan,
+        experience_confirmed: true,
       },
     })
   }
@@ -390,42 +419,8 @@ export function useChat({ onSessionsChanged } = {}) {
     }
   }, [state.pendingTrip, state.sessionId])
 
-  const selectPlanForRefine = useCallback(async (planIndex) => {
-    const { path, snapshot } = deriveStateAt(state.allMessages, state.headMessageId)
-    if (!snapshot || !Array.isArray(snapshot.cached_options ? path[path.length - 1].plan_snapshot : null)) return
-    const headMsg = path[path.length - 1]
-    const plans = headMsg.plan_snapshot || []
-    if (!plans[planIndex]) return
-
-    const sessionId = state.sessionId
-    if (!sessionId) return
-    dispatch({ type: 'set-busy', busy: true })
-    try {
-      // Synthetic user "I'll go with X" + assistant ack — preserves a head_message_id we can refine from.
-      const userMsg = await postMessage(sessionId, {
-        role: 'user',
-        parent_id: state.headMessageId,
-        content: `Let's go with the "${plans[planIndex].title}" plan and refine it.`,
-      })
-      const ack = await postAssistant({
-        sessionId,
-        parentUserId: userMsg.id,
-        content: `Locked in "${plans[planIndex].title}". Tell me what you'd like to change.`,
-        plan_snapshot: [plans[planIndex]],
-        state_snapshot: {
-          trip_context: snapshot.trip_context,
-          cached_options: snapshot.cached_options,
-          selected_plan_index: planIndex,
-          selected_plan: plans[planIndex],
-        },
-      })
-      return ack
-    } catch (err) {
-      dispatch({ type: 'set-error', error: err.message })
-    } finally {
-      dispatch({ type: 'set-busy', busy: false })
-    }
-  }, [state.allMessages, state.headMessageId, state.sessionId])
+  // Kept for API compatibility; no-op in single-plan mode (plans are selected automatically).
+  const selectPlanForRefine = useCallback(() => {}, [])
 
   const editMessage = useCallback(async (messageId, newContent) => {
     const target = state.allMessages.find((m) => m.id === messageId)
@@ -570,10 +565,14 @@ export function useSavedPlans(refreshNonce) {
   const [plans, setPlans] = useState([])
   const [error, setError] = useState(null)
 
-  const reload = useCallback(() => {
-    return api.listPlans()
-      .then((rows) => { setPlans(rows ?? []); setError(null) })
-      .catch((e) => setError(e.message))
+  const reload = useCallback(async () => {
+    try {
+      const rows = await api.listPlans()
+      setPlans(rows ?? [])
+      setError(null)
+    } catch (e) {
+      setError(e.message)
+    }
   }, [])
 
   useEffect(() => {

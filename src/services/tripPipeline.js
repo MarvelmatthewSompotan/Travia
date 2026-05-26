@@ -240,13 +240,30 @@ export async function searchHotels(destinationName, checkIn, checkOut) {
   }))
 }
 
-export async function selectPlans(tripInfo, flights, places, hotels, opts) {
+const EXPERIENCE_BIAS = {
+  balanced:   'Pick the best overall combination of quality, price, and variety.',
+  budget:     'Minimize total cost. Maximize review quality per dollar. Avoid premium options.',
+  luxury:     'Pick the highest-reviewed premium options regardless of price. Hotels 4+ stars.',
+  adventure:  'Prioritize outdoor, active, and adventurous places. Avoid tourist traps.',
+  food:       'Prioritize restaurants and food experiences. Include at least 3 restaurants in places.',
+  relaxation: 'Prioritize resorts, beaches, spas, and low-intensity activities.',
+  cultural:   'Prioritize museums, historical sites, local markets, and authentic neighborhoods.',
+  romantic:   'Prefer couple-friendly venues and boutique hotels.',
+  family:     'Prefer family-friendly places and kid-safe hotels.',
+}
+
+export async function generatePlan(tripInfo, cachedOptions, experienceType = 'balanced', opts) {
+  const { flights = [], places = [], hotels = [] } = cachedOptions
+  const bias = EXPERIENCE_BIAS[experienceType] || EXPERIENCE_BIAS.balanced
+
   const flightList = flights.map((f, i) => `[${i}] ${f.airline} — $${f.price ?? '?'}, ${f.stops} stop(s), ${f.duration_min ?? '?'} min`)
-  const hotelList = hotels.map((h, i) => `[${i}] ${h.name} — $${h.price_per_night ?? '?'}/night, rating ${h.rating ?? '?'}, ${h.hotel_class ?? 'hotel'}`)
-  const placeList = places.map((p, i) => `[${i}] ${p.name} — rating ${p.rating ?? '?'}`)
+  const hotelList  = hotels.map((h, i) => `[${i}] ${h.name} — $${h.price_per_night ?? '?'}/night, rating ${h.rating ?? '?'}`)
+  const placeList  = places.map((p, i) => `[${i}] ${p.name} — rating ${p.rating ?? '?'}`)
 
   const context = `TRIP: ${tripInfo.departure_city || tripInfo.departure_iata} → ${tripInfo.destination_name}, ${tripInfo.trip_duration_days} days
-USER PREFERENCES: ${tripInfo.preferences || 'none specified'}
+PREFERENCES: ${tripInfo.preferences || 'none specified'}
+EXPERIENCE TYPE: ${experienceType}
+PLANNING BIAS: ${bias}
 
 FLIGHT OPTIONS:
 ${flightList.length ? flightList.join('\n') : 'none'}
@@ -257,18 +274,15 @@ ${hotelList.length ? hotelList.join('\n') : 'none'}
 PLACE OPTIONS:
 ${placeList.length ? placeList.join('\n') : 'none'}`
 
-  const system = `You are a travel planning assistant. Choose options for 3 travel plans from the numbered lists provided.
+  const system = `You are a travel planning assistant. Choose ONE travel plan from the numbered lists, applying the PLANNING BIAS strictly.
 Return ONLY a valid JSON object — no markdown, no code fences.
-The object must have exactly three keys: "best", "budget", "balanced".
-- "best": highest quality regardless of price
-- "budget": cheapest viable option
-- "balanced": a sensible mix of quality and price
-Each key maps to an object with exactly these fields:
-- "title": short plan name, max 6 words
-- "brief": 1-2 sentences on why this plan fits, max 40 words
-- "flight": integer index of the chosen flight from the FLIGHT OPTIONS list
-- "hotel": integer index of the chosen hotel from the HOTEL OPTIONS list
-- "places": array of 3 to 5 integer indices from the PLACE OPTIONS list
+Fields:
+- "experience_type": the experience type string
+- "title": short plan name, max 8 words
+- "brief": 2-3 sentences explaining why this combination fits the experience type, max 60 words
+- "flight": integer index from FLIGHT OPTIONS
+- "hotel": integer index from HOTEL OPTIONS
+- "places": array of 4-6 integer indices from PLACE OPTIONS
 Only use index numbers that exist in the lists above.`
 
   const text = await ollamaGenerate(system, context, opts)
@@ -276,13 +290,39 @@ Only use index numbers that exist in the lists above.`
   if (!raw) throw new Error('AI returned an invalid response. Please try again.')
 
   const parsed = JSON.parse(raw)
-  for (const key of ['best', 'budget', 'balanced']) {
-    const sel = parsed[key]
-    if (!sel || typeof sel.title !== 'string' || typeof sel.brief !== 'string') {
-      throw new Error('AI response was missing expected fields. Please try again.')
-    }
+  if (!parsed || typeof parsed.title !== 'string' || typeof parsed.brief !== 'string') {
+    throw new Error('AI response was missing expected fields. Please try again.')
   }
-  return parsed
+  return { ...parsed, experience_type: experienceType }
+}
+
+export async function generateExperiencePrompt(plan, tripInfo, opts) {
+  const system = 'You are a friendly travel assistant. Keep replies to 2-3 sentences, conversational tone, no bullet lists.'
+  const prompt = `You just generated a ${tripInfo.trip_duration_days}-day trip to ${tripInfo.destination_name} with hotel: ${plan.hotel?.name ?? 'selected hotel'}.
+
+Ask the user what kind of vibe or experience type they want so you can tailor a new version. Naturally mention a few options like budget-friendly, luxury, food trip, adventure, relaxation, romantic, or cultural — but don't make it feel like a menu.`
+
+  return await ollamaGenerate(system, prompt, opts)
+}
+
+export async function parseExperienceType(userMessage, opts) {
+  const system = 'You classify travel experience preferences. Respond ONLY with valid JSON — no markdown.'
+  const prompt = `The user was asked what kind of travel experience they want.
+USER SAID: "${userMessage}"
+
+Map to the closest type. Valid types: balanced, budget, luxury, adventure, food, relaxation, cultural, romantic, family.
+If unclear, use "balanced".
+
+Respond ONLY with valid JSON:
+{"experience_type": "balanced", "confidence": "high", "raw_preference": "user words"}`
+
+  const text = await ollamaGenerate(system, prompt, opts)
+  const raw = extractJsonObject(text)
+  try {
+    return raw ? JSON.parse(raw) : { experience_type: 'balanced', confidence: 'low', raw_preference: userMessage }
+  } catch {
+    return { experience_type: 'balanced', confidence: 'low', raw_preference: userMessage }
+  }
 }
 
 export function pickIndex(value, list) {

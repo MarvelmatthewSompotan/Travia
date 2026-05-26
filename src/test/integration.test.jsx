@@ -2,7 +2,7 @@
  * Integration tests — multiple components working together and user workflows.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { MyPlans } from '../components/Pages/MyPlans/MyPlans'
 import { Planner } from '../components/Pages/Planner/Planner'
 import { AppShell } from '../components/Layout/AppShell/AppShell'

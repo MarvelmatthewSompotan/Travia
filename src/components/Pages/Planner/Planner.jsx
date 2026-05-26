@@ -81,7 +81,7 @@ export function Planner({ chat, savedPlanKeys, onSavePlan }) {
             <Hero
               title="Where to"
               accent="next"
-              subtitle="Describe your trip and I'll search live flights, hotels and places, then suggest 3 plans tailored to your style."
+              subtitle="Describe your trip and I'll search live flights, hotels and places, then build a detailed plan tailored to your style."
             />
           </div>
         )}

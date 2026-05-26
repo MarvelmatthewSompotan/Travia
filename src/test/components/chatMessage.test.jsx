@@ -98,50 +98,13 @@ describe('ChatMessage — assistant role (text only)', () => {
   })
 })
 
-// ── Assistant message — browsing 3 plans ─────────────────────────────────────
-const threePlans = [
-  { title: 'Best',     brief: 'Top quality', total_price: 500, flight: null, hotel: null, places: [] },
-  { title: 'Budget',   brief: 'Cheapest',    total_price: 200, flight: null, hotel: null, places: [] },
-  { title: 'Balanced', brief: 'Middle',       total_price: 350, flight: null, hotel: null, places: [] },
-]
-
-describe('ChatMessage — assistant role (browsing 3 plans)', () => {
+// ── Assistant message — trip plan card ───────────────────────────────────────
+describe('ChatMessage — assistant role (trip plan card)', () => {
+  const selectedPlan = { title: 'Bali Trip', brief: 'Beaches and temples', total_price: 500, flight: null, hotel: null, places: [] }
   const msg = {
     id: 3,
     role: 'assistant',
-    content: 'Here are 3 options',
-    plan_snapshot: threePlans,
-    state_snapshot: { selected_plan: null, cached_options: {}, trip_context: {} },
-    parent_id: null,
-  }
-
-  it('renders three plan cards', () => {
-    render(<ChatMessage {...baseProps} message={msg} />)
-    expect(screen.getByText('Best')).toBeInTheDocument()
-    expect(screen.getByText('Budget')).toBeInTheDocument()
-    expect(screen.getByText('Balanced')).toBeInTheDocument()
-  })
-
-  it('renders "Select to refine" buttons for each plan', () => {
-    render(<ChatMessage {...baseProps} message={msg} />)
-    expect(screen.getAllByText(/Select to refine/)).toHaveLength(3)
-  })
-
-  it('calls onSelectPlan with the correct index', () => {
-    const onSelectPlan = vi.fn()
-    render(<ChatMessage {...baseProps} message={msg} onSelectPlan={onSelectPlan} />)
-    fireEvent.click(screen.getAllByText(/Select to refine/)[1])
-    expect(onSelectPlan).toHaveBeenCalledWith(1)
-  })
-})
-
-// ── Assistant message — selected plan (refining) ──────────────────────────────
-describe('ChatMessage — assistant role (selected plan)', () => {
-  const selectedPlan = { title: 'Best', brief: 'Top quality', total_price: 500, flight: null, hotel: null, places: [] }
-  const msg = {
-    id: 4,
-    role: 'assistant',
-    content: 'Locked in your plan',
+    content: 'Here is your trip plan',
     plan_snapshot: [selectedPlan],
     state_snapshot: { selected_plan: selectedPlan, cached_options: {}, trip_context: {} },
     parent_id: null,

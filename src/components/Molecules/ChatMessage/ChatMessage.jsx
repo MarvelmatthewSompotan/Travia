@@ -3,10 +3,8 @@ import { formatBold } from '../../../services/formatBold'
 import { siblingInfo } from '../../../services/chatTree'
 import { PlanCard } from '../PlanCard/PlanCard'
 import { PlanDetail } from '../PlanDetail/PlanDetail'
+import suitcaseIcon from '../../../assets/icons/u_suitcase-alt.svg'
 import './ChatMessage.css'
-
-const PLAN_ICONS = ['🏆', '💰', '⚖️']
-const PLAN_TONES = ['a', 'b', 'c']
 
 function BranchArrows({ message, allMessages, onSwitchBranch }) {
   const { siblings, indexInSiblings } = siblingInfo(allMessages, message)
@@ -73,15 +71,13 @@ function AssistantMessage({
   streamingContent,
   onRegenerate,
   onSwitchBranch,
-  onSelectPlan,
   onSavePlan,
   isSavedHere,
   disabled,
 }) {
   const [openPlanIndex, setOpenPlanIndex] = useState(null)
   const plans = message.plan_snapshot || []
-  const isSelectedPlanMode = plans.length === 1 && message.state_snapshot?.selected_plan
-  const isBrowsingPlans = plans.length === 3 && !message.state_snapshot?.selected_plan
+  const hasPlan = plans.length >= 1 && message.state_snapshot?.selected_plan
   const content = isStreaming ? streamingContent : message.content
 
   if (openPlanIndex != null && plans[openPlanIndex]) {
@@ -89,7 +85,7 @@ function AssistantMessage({
       <PlanDetail
         section={plans[openPlanIndex]}
         onBack={() => setOpenPlanIndex(null)}
-        onSave={isSelectedPlanMode ? onSavePlan : undefined}
+        onSave={onSavePlan}
         isSaved={isSavedHere}
       />
     )
@@ -101,34 +97,11 @@ function AssistantMessage({
         {content ? formatBold(content) : <span className="chat-message__placeholder">…</span>}
       </div>
 
-      {isBrowsingPlans && (
-        <div className="chat-plans">
-          {plans.map((plan, i) => (
-            <div key={i} className="chat-plan-row">
-              <PlanCard
-                icon={PLAN_ICONS[i]}
-                tone={PLAN_TONES[i]}
-                title={plan.title}
-                brief={plan.brief}
-                price={plan.total_price}
-                onClick={() => setOpenPlanIndex(i)}
-              />
-              <button
-                type="button"
-                className="chat-action chat-action--primary"
-                disabled={disabled}
-                onClick={() => onSelectPlan(i)}
-              >Select to refine →</button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {isSelectedPlanMode && (
+      {hasPlan && (
         <div className="chat-plans">
           <div className="chat-plan-row">
             <PlanCard
-              icon="🎯"
+              icon={<img src={suitcaseIcon} alt="" aria-hidden="true" className="plan-card__icon-img" />}
               tone="a"
               title={plans[0].title}
               brief={plans[0].brief}
