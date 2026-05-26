@@ -47,7 +47,7 @@ function buildFlightLink(depIata, arrIata, outboundDate, returnDate) {
   return `https://www.google.com/travel/flights?q=${encodeURIComponent(q)}`
 }
 
-export async function ollamaGenerate(system, prompt, { signal } = {}) {
+export async function ollamaGenerate(system, prompt, { signal, json = true } = {}) {
   const res = await fetch(OLLAMA_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -57,7 +57,7 @@ export async function ollamaGenerate(system, prompt, { signal } = {}) {
       system,
       prompt,
       stream: false,
-      format: 'json',
+      ...(json ? { format: 'json' } : {}),
     }),
   })
   if (!res.ok) {
@@ -206,7 +206,7 @@ Still needed to plan the trip: ${missingRequired.join(', ')}${missingOptional.le
 ${recentUser ? `User just said: "${recentUser}"` : ''}
 Write a natural follow-up question.`
 
-  return await ollamaGenerate(system, prompt, opts)
+  return await ollamaGenerate(system, prompt, { ...opts, json: false })
 }
 
 export async function generateReadyConfirmation(tripContext, opts) {
@@ -214,7 +214,7 @@ export async function generateReadyConfirmation(tripContext, opts) {
   const system =
     'You are a friendly travel assistant. In one short sentence, confirm you have all the details and are now searching. Be warm and brief.'
   const prompt = `Trip: ${tripContext.departure_city || tripContext.departure_iata} → ${tripContext.destination_name}, ${tripContext.trip_duration_days} day(s) from ${tripContext.outbound_date || 'soon'}.`
-  return await ollamaGenerate(system, prompt, opts)
+  return await ollamaGenerate(system, prompt, { ...opts, json: false })
 }
 
 export function fillDefaults(tripContext) {
@@ -438,7 +438,7 @@ export async function generateExperiencePrompt(plan, tripInfo, opts) {
 
 Ask the user what kind of vibe or experience type they want so you can tailor a new version. Naturally mention a few options like budget-friendly, luxury, food trip, adventure, relaxation, romantic, or cultural — but don't make it feel like a menu.`
 
-  return await ollamaGenerate(system, prompt, opts)
+  return await ollamaGenerate(system, prompt, { ...opts, json: false })
 }
 
 export async function parseExperienceType(userMessage, opts) {
