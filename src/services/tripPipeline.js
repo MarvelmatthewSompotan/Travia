@@ -378,7 +378,11 @@ export async function generatePlan(tripInfo, cachedOptions, experienceType = 'ba
 
   const flightList = flights.map((f, i) => `[${i}] ${f.airline} — $${f.price ?? '?'}, ${f.stops} stop(s), ${f.duration_min ?? '?'} min`)
   const hotelList  = hotels.map((h, i) => `[${i}] ${h.name} — $${h.price_per_night ?? '?'}/night, rating ${h.rating ?? '?'}`)
-  const placeList  = places.map((p, i) => `[${i}] ${p.name} — rating ${p.rating ?? '?'}`)
+  const placeList  = places.map((p, i) => {
+    const rating = p.tripadvisor_rating ?? p.rating ?? '?'
+    const reviewNote = p.review_snippets?.[0] ? ` · "${p.review_snippets[0].slice(0, 80)}"` : ''
+    return `[${i}] ${p.name} — rating ${rating}${reviewNote}`
+  })
 
   const context = `TRIP: ${tripInfo.departure_city || tripInfo.departure_iata} → ${tripInfo.destination_name}, ${tripInfo.trip_duration_days} days
 PREFERENCES: ${tripInfo.preferences || 'none specified'}
