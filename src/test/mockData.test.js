@@ -7,6 +7,7 @@ import {
   MOCK_PLACES,
   MOCK_TRIPADVISOR_PLACES,
   MOCK_NARRATIVE,
+  MOCK_READY_CONFIRMATION,
 } from '../services/mockData'
 
 describe('MOCK_USER_PROMPT', () => {
@@ -115,5 +116,17 @@ describe('MOCK_NARRATIVE', () => {
   it('is a non-empty string', () => {
     expect(typeof MOCK_NARRATIVE).toBe('string')
     expect(MOCK_NARRATIVE.length).toBeGreaterThan(0)
+  })
+
+  it('does not reference old three-plan language', () => {
+    expect(MOCK_NARRATIVE.toLowerCase()).not.toContain('three')
+    expect(MOCK_NARRATIVE.toLowerCase()).not.toContain('three travel plans')
+  })
+})
+
+describe('MOCK_READY_CONFIRMATION', () => {
+  it('is a non-empty string', () => {
+    expect(typeof MOCK_READY_CONFIRMATION).toBe('string')
+    expect(MOCK_READY_CONFIRMATION.length).toBeGreaterThan(0)
   })
 })
