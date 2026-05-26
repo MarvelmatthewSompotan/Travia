@@ -5,6 +5,7 @@ import {
   MOCK_FLIGHTS,
   MOCK_HOTELS,
   MOCK_PLACES,
+  MOCK_TRIPADVISOR_PLACES,
   MOCK_NARRATIVE,
 } from '../services/mockData'
 
@@ -90,6 +91,23 @@ describe('MOCK_PLACES', () => {
 
   it('provides at least 3 places (minimum for a plan)', () => {
     expect(MOCK_PLACES.length).toBeGreaterThanOrEqual(3)
+  })
+})
+
+describe('MOCK_TRIPADVISOR_PLACES', () => {
+  it('is a non-empty array', () => {
+    expect(Array.isArray(MOCK_TRIPADVISOR_PLACES)).toBe(true)
+    expect(MOCK_TRIPADVISOR_PLACES.length).toBeGreaterThan(0)
+  })
+
+  it('each entry has required enrichment fields', () => {
+    for (const p of MOCK_TRIPADVISOR_PLACES) {
+      expect(typeof p.name).toBe('string')
+      expect(typeof p.tripadvisor_rating).toBe('number')
+      expect(typeof p.tripadvisor_review_count).toBe('number')
+      expect(Array.isArray(p.review_snippets)).toBe(true)
+      expect(p.review_snippets.every((s) => typeof s === 'string')).toBe(true)
+    }
   })
 })
 
