@@ -4,9 +4,7 @@ Travia is a full-stack AI travel planner built around a conversational, single-p
 
 The frontend is a React + Vite app in `src/`, and the backend is a Laravel API in `server/`. The planner uses a local Ollama model as an LLM-orchestrated tool-using agent — it extracts trip intent, calls SearchAPI for live flights, hotels, and places, selects and assembles a plan, and streams a natural-language response back. Plans can be refined indefinitely within the same session.
 
-> **A note on naming:** The project directory is still `RAG GFS` for legacy reasons, but the app is Travia. There is no retrieval-augmented generation (RAG) in the traditional sense; the pipeline is a sequential tool-using agent orchestrated by an LLM.
-
-For AI-assisted code analysis, start with [AI_CONTEXT.md](AI_CONTEXT.md).
+For AI-assisted code analysis, start with [CONTEXT.md](CONTEXT.md).
 
 ## Features
 
@@ -47,7 +45,7 @@ For AI-assisted code analysis, start with [AI_CONTEXT.md](AI_CONTEXT.md).
 │   ├── database/migrations/
 │   ├── routes/
 │   └── config/
-└── AI_CONTEXT.md            # AI-oriented system map and maintenance notes
+└── CONTEXT.md               # AI-oriented system map and maintenance notes
 ```
 
 ## Key Frontend Files
