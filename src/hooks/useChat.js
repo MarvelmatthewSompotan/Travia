@@ -2,11 +2,13 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { api } from '../services/api'
 import {
   assemblePlan,
-  extractTripInfo,
+  extractAndMergeTripInfo,
   fetchTripOptions,
+  fillDefaults,
   generateExperiencePrompt,
+  generateFollowUp,
   generatePlan,
-  getMissingFields,
+  generateReadyConfirmation,
   normalizeTripInfo,
   ollamaStream,
   parseExperienceType,
@@ -21,7 +23,6 @@ function initialState() {
     title: 'New chat',
     headMessageId: null,
     allMessages: [],
-    pendingTrip: null,
     streaming: null, // { tempId, content }
     status: '',
     error: null,
@@ -39,7 +40,6 @@ function reducer(state, action) {
         title: action.session.title,
         headMessageId: action.session.head_message_id ?? null,
         allMessages: action.session.messages || [],
-        pendingTrip: null,
         streaming: null,
         status: '',
         error: null,
@@ -63,7 +63,6 @@ function reducer(state, action) {
     case 'set-status': return { ...state, status: action.status }
     case 'set-error': return { ...state, error: action.error }
     case 'set-busy': return { ...state, busy: action.busy }
-    case 'set-pending-trip': return { ...state, pendingTrip: action.pendingTrip }
     default: return state
   }
 }
@@ -183,15 +182,38 @@ export function useChat({ onSessionsChanged } = {}) {
     else if (snapshot?.current_plan && snapshot?.experience_confirmed) mode = 'refine'
 
     if (mode === 'intake') {
-      dispatch({ type: 'set-status', status: 'Analyzing your trip…' })
-      const info = await extractTripInfo(userMessage, { signal })
-      const missing = getMissingFields(info)
-      if (missing.length > 0) {
-        dispatch({ type: 'set-pending-trip', pendingTrip: { info, missing, parentUserId } })
+      dispatch({ type: 'set-status', status: 'Understanding your trip…' })
+      const history = historyMessages.map((m) => ({ role: m.role, content: String(m.content || '') }))
+      const existingContext = snapshot?.trip_context || {}
+
+      const { trip_context, ready_to_plan, missing_required, missing_optional } =
+        await extractAndMergeTripInfo(history, existingContext, { signal })
+
+      if (!ready_to_plan) {
         dispatch({ type: 'set-status', status: '' })
-        return null
+        const followUp = await generateFollowUp(
+          trip_context, missing_required, missing_optional, history, { signal },
+        ).catch(() => 'Could you tell me where you\'re flying from, where you\'re headed, and how many days you\'ll be away?')
+
+        return await postAssistant({
+          sessionId,
+          parentUserId,
+          content: followUp,
+          plan_snapshot: null,
+          state_snapshot: {
+            trip_context,
+            cached_options: null,
+            current_plan: null,
+            experience_confirmed: false,
+          },
+        })
       }
-      return await runIntake({ sessionId, parentUserId, tripInfo: info, signal })
+
+      const filledInfo = fillDefaults(trip_context)
+      const confirmation = await generateReadyConfirmation(filledInfo, { signal }).catch(() => '')
+      if (confirmation) dispatch({ type: 'set-status', status: confirmation })
+
+      return await runIntake({ sessionId, parentUserId, tripInfo: filledInfo, signal })
     }
 
     if (mode === 'experience') {
@@ -394,31 +416,6 @@ export function useChat({ onSessionsChanged } = {}) {
     }
   }, [state.sessionId, state.headMessageId, state.allMessages, state.title])
 
-  const confirmPendingTrip = useCallback(async (filledInfo) => {
-    const pending = state.pendingTrip
-    if (!pending) return
-
-    abortRef.current = new AbortController()
-    const signal = abortRef.current.signal
-    dispatch({ type: 'set-busy', busy: true })
-    dispatch({ type: 'set-error', error: null })
-    dispatch({ type: 'set-pending-trip', pendingTrip: null })
-
-    try {
-      await runIntake({
-        sessionId: state.sessionId,
-        parentUserId: pending.parentUserId,
-        tripInfo: filledInfo,
-        signal,
-      })
-    } catch (err) {
-      if (err.name !== 'AbortError') dispatch({ type: 'set-error', error: err.message })
-    } finally {
-      dispatch({ type: 'set-busy', busy: false })
-      dispatch({ type: 'set-status', status: '' })
-    }
-  }, [state.pendingTrip, state.sessionId])
-
   // Kept for API compatibility; no-op in single-plan mode (plans are selected automatically).
   const selectPlanForRefine = useCallback(() => {}, [])
 
@@ -526,7 +523,6 @@ export function useChat({ onSessionsChanged } = {}) {
     pathMessages,
     headSnapshot,
     streaming: state.streaming,
-    pendingTrip: state.pendingTrip,
     status: state.status,
     error: state.error,
     busy: state.busy,
@@ -535,7 +531,6 @@ export function useChat({ onSessionsChanged } = {}) {
     loadSession,
     deleteSession,
     sendMessage,
-    confirmPendingTrip,
     selectPlanForRefine,
     editMessage,
     regenerateAssistant,

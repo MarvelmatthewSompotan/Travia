@@ -7,7 +7,6 @@ import {
   MOCK_PLACES,
   MOCK_NARRATIVE,
 } from '../services/mockData'
-import { REQUIRED_FIELDS } from '../services/tripPipeline'
 
 describe('MOCK_USER_PROMPT', () => {
   it('is a non-empty string', () => {
@@ -17,8 +16,8 @@ describe('MOCK_USER_PROMPT', () => {
 })
 
 describe('MOCK_TRIP_INFO', () => {
-  it('has all REQUIRED_FIELDS filled', () => {
-    for (const field of REQUIRED_FIELDS) {
+  it('has all intake-required fields filled', () => {
+    for (const field of ['departure_iata', 'arrival_iata', 'destination_name', 'trip_duration_days']) {
       expect(MOCK_TRIP_INFO[field]).toBeTruthy()
     }
   })

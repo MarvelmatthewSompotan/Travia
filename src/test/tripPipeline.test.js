@@ -2,11 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   addDays,
   daysFromNow,
-  getMissingFields,
+  fillDefaults,
   normalizeTripInfo,
   pickIndex,
   assemblePlan,
-  REQUIRED_FIELDS,
 } from '../services/tripPipeline'
 
 // ── addDays ──────────────────────────────────────────────────────────────────
@@ -43,51 +42,35 @@ describe('daysFromNow', () => {
   })
 })
 
-// ── REQUIRED_FIELDS & getMissingFields ────────────────────────────────────────
-describe('getMissingFields', () => {
-  it('returns all required fields for an empty object', () => {
-    const missing = getMissingFields({})
-    expect(missing).toEqual(expect.arrayContaining(REQUIRED_FIELDS))
-    expect(missing).toHaveLength(REQUIRED_FIELDS.length)
+// ── fillDefaults ──────────────────────────────────────────────────────────────
+describe('fillDefaults', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2025-09-01T00:00:00Z'))
+  })
+  afterEach(() => vi.useRealTimers())
+
+  it('fills outbound_date with 7 days from now when missing', () => {
+    const result = fillDefaults({ departure_iata: 'MDC', arrival_iata: 'DPS', destination_name: 'Bali', trip_duration_days: 3 })
+    expect(result.outbound_date).toBe('2025-09-08')
   })
 
-  it('returns empty array when all required fields are present', () => {
-    expect(getMissingFields({
-      departure_iata: 'MDC',
-      arrival_iata: 'DPS',
-      destination_name: 'Bali',
-      trip_duration_days: 3,
-    })).toEqual([])
+  it('keeps an existing outbound_date unchanged', () => {
+    const result = fillDefaults({ outbound_date: '2025-10-01', trip_duration_days: 3 })
+    expect(result.outbound_date).toBe('2025-10-01')
   })
 
-  it('flags null values as missing', () => {
-    const missing = getMissingFields({
-      departure_iata: null,
-      arrival_iata: 'DPS',
-      destination_name: 'Bali',
-      trip_duration_days: 3,
-    })
-    expect(missing).toContain('departure_iata')
+  it('does not mutate the input object', () => {
+    const input = { trip_duration_days: 3 }
+    fillDefaults(input)
+    expect(input).not.toHaveProperty('outbound_date')
   })
 
-  it('flags trip_duration_days=0 as missing', () => {
-    const missing = getMissingFields({
-      departure_iata: 'MDC',
-      arrival_iata: 'DPS',
-      destination_name: 'Bali',
-      trip_duration_days: 0,
-    })
-    expect(missing).toContain('trip_duration_days')
-  })
-
-  it('flags non-numeric trip_duration_days as missing', () => {
-    const missing = getMissingFields({
-      departure_iata: 'MDC',
-      arrival_iata: 'DPS',
-      destination_name: 'Bali',
-      trip_duration_days: 'three',
-    })
-    expect(missing).toContain('trip_duration_days')
+  it('preserves all other fields as-is', () => {
+    const input = { departure_iata: 'MDC', arrival_iata: 'DPS', destination_name: 'Bali', trip_duration_days: 5, outbound_date: '2025-10-01' }
+    const result = fillDefaults(input)
+    expect(result.departure_iata).toBe('MDC')
+    expect(result.trip_duration_days).toBe(5)
   })
 })
 

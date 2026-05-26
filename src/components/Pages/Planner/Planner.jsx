@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChatMessage } from '../../Molecules/ChatMessage/ChatMessage'
 import { Composer } from '../../Molecules/Composer/Composer'
-import { ConfirmForm } from '../../Molecules/ConfirmForm/ConfirmForm'
 import { Hero } from '../../Molecules/Hero/Hero'
 import { SuggestionCards } from '../../Molecules/SuggestionCards/SuggestionCards'
 import { TypingIndicator } from '../../Atoms/TypingIndicator/TypingIndicator'
@@ -40,13 +39,11 @@ export function Planner({ chat, savedPlanKeys, onSavePlan }) {
     pathMessages,
     allMessages,
     streaming,
-    pendingTrip,
     status,
     error,
     busy,
     sessionId,
     sendMessage,
-    confirmPendingTrip,
     selectPlanForRefine,
     editMessage,
     regenerateAssistant,
@@ -63,7 +60,7 @@ export function Planner({ chat, savedPlanKeys, onSavePlan }) {
     }
   }, [pathMessages, streaming?.content])
 
-  const isEmpty = pathMessages.length === 0 && !pendingTrip && !streaming
+  const isEmpty = pathMessages.length === 0 && !streaming
   const keys = useMemo(() => savedPlanKeys ?? new Set(), [savedPlanKeys])
 
   const submit = (override) => {
@@ -132,10 +129,6 @@ export function Planner({ chat, savedPlanKeys, onSavePlan }) {
             )}
 
             {busy && !streaming && <TypingIndicator label={status || 'Working…'} />}
-
-            {pendingTrip && (
-              <ConfirmForm pendingTrip={pendingTrip} onConfirm={confirmPendingTrip} disabled={busy} />
-            )}
           </div>
         )}
 

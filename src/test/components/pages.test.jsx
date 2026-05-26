@@ -78,13 +78,11 @@ function makeChat(overrides = {}) {
     pathMessages: [],
     allMessages: [],
     streaming: null,
-    pendingTrip: null,
     status: '',
     error: null,
     busy: false,
     sessionId: null,
     sendMessage: vi.fn(),
-    confirmPendingTrip: vi.fn(),
     selectPlanForRefine: vi.fn(),
     editMessage: vi.fn(),
     regenerateAssistant: vi.fn(),
@@ -148,16 +146,5 @@ describe('Planner', () => {
     render(<Planner chat={makeChat({ busy: true, stop })} savedPlanKeys={new Set()} onSavePlan={vi.fn()} />)
     fireEvent.click(screen.getByText('Stop'))
     expect(stop).toHaveBeenCalledOnce()
-  })
-
-  it('renders ConfirmForm when pendingTrip is set', () => {
-    const pendingTrip = {
-      info: { departure_iata: null, arrival_iata: 'DPS', destination_name: 'Bali', trip_duration_days: null, outbound_date: null },
-      missing: ['departure_iata'],
-      parentUserId: 1,
-    }
-    const chat = makeChat({ pendingTrip, busy: false })
-    render(<Planner chat={chat} savedPlanKeys={new Set()} onSavePlan={vi.fn()} />)
-    expect(screen.getByRole('button', { name: /Continue planning/i })).toBeInTheDocument()
   })
 })

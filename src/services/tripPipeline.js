@@ -11,12 +11,8 @@ const OLLAMA_MODEL = 'llama3.2'
 const OLLAMA_URL = 'http://localhost:11434/api/generate'
 const SEARCHAPI_BASE = 'https://www.searchapi.io/api/v1/search'
 
-export const REQUIRED_FIELDS = [
-  'departure_iata',
-  'arrival_iata',
-  'destination_name',
-  'trip_duration_days',
-]
+const INTAKE_REQUIRED = ['departure_iata', 'arrival_iata', 'destination_name', 'trip_duration_days']
+const INTAKE_OPTIONAL = ['outbound_date', 'preferences']
 
 function getApiKey() {
   const key = import.meta.env.VITE_SEARCHAPI_KEY
@@ -113,32 +109,105 @@ export async function ollamaStream(system, prompt, onChunk, { signal } = {}) {
   return full
 }
 
-export async function extractTripInfo(userPrompt, opts) {
-  if (MOCK) return { ...MOCK_TRIP_INFO }
+export async function extractAndMergeTripInfo(conversationHistory, existingContext = {}, opts) {
+  if (MOCK) {
+    return {
+      trip_context: { ...MOCK_TRIP_INFO },
+      ready_to_plan: true,
+      missing_required: [],
+      missing_optional: [],
+    }
+  }
+
   const today = new Date().toISOString().split('T')[0]
-  const system = `Extract travel details from the user's trip description. Today's date is ${today}.
-Return ONLY a valid JSON object with exactly these fields. Use null for anything the user did NOT state — do not guess.
-- "departure_iata": The SPECIFIC primary airport IATA code (3 letters) for the departure city. Examples: Manado="MDC", Jakarta="CGK", Surabaya="SUB", Bali="DPS". Never use a city/metro code.
-- "departure_city": Departure city name, or null
-- "arrival_iata": The SPECIFIC primary airport IATA code (3 letters) for the destination. Examples: Tokyo="HND", Bali="DPS", Bangkok="BKK", Singapore="SIN", Seoul="ICN". NEVER use a metro code like "TYO" — always pick one real airport.
-- "destination_name": Full destination name for searching (e.g. "Tokyo, Japan"), or null
-- "trip_duration_days": Number of days as an integer, or null
-- "outbound_date": Departure date as YYYY-MM-DD. If the user gives only a month or a relative time (e.g. "November", "next month"), resolve it to a concrete FUTURE date — use the 15th of that month. If no date at all is mentioned, null.
-- "preferences": Short text describing the kind of trip the user wants (e.g. "Japanese food, sightseeing"), or null`
+  const convoText = conversationHistory
+    .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+    .join('\n')
 
-  const text = await ollamaGenerate(system, userPrompt, opts)
+  const system = `You extract travel details from a conversation. Today is ${today}.
+Return ONLY valid JSON with these exact fields (null when not stated — never guess):
+- "departure_iata": 3-letter airport IATA for the origin (e.g. Manado="MDC", Jakarta="CGK", Bali="DPS"). Never use metro codes.
+- "departure_city": origin city name, or null
+- "arrival_iata": 3-letter airport IATA for the destination (e.g. Tokyo="HND", Bangkok="BKK", Seoul="ICN"). Never use metro codes.
+- "destination_name": full destination name, e.g. "Bali, Indonesia", or null
+- "trip_duration_days": integer number of days, or null
+- "outbound_date": departure date as YYYY-MM-DD; if only a month or relative time given, resolve to a concrete FUTURE date (use 15th of that month); null if not mentioned
+- "preferences": short text about the kind of trip (beaches, food, museums…), or null`
+
+  const existingText = Object.entries(existingContext)
+    .filter(([, v]) => v != null)
+    .map(([k, v]) => `${k}=${v}`)
+    .join(', ')
+
+  const prompt = `${existingText ? `Previously known: ${existingText}\n\n` : ''}Conversation:\n${convoText}\n\nExtract or update the trip details. Preserve previously known values unless the conversation explicitly changes them.`
+
+  const text = await ollamaGenerate(system, prompt, opts)
   const raw = extractJsonObject(text)
-  if (!raw) throw new Error('Could not understand the trip description. Please rephrase it.')
-  return JSON.parse(raw)
-}
 
-export function getMissingFields(info) {
-  return REQUIRED_FIELDS.filter((f) => {
-    const v = info[f]
-    if (v === null || v === undefined || v === '') return true
+  let extracted
+  try { extracted = raw ? JSON.parse(raw) : {} } catch { extracted = {} }
+
+  const trip_context = {
+    departure_iata:    extracted.departure_iata    ?? existingContext.departure_iata    ?? null,
+    departure_city:    extracted.departure_city    ?? existingContext.departure_city    ?? null,
+    arrival_iata:      extracted.arrival_iata      ?? existingContext.arrival_iata      ?? null,
+    destination_name:  extracted.destination_name  ?? existingContext.destination_name  ?? null,
+    trip_duration_days: extracted.trip_duration_days ?? existingContext.trip_duration_days ?? null,
+    outbound_date:     extracted.outbound_date     ?? existingContext.outbound_date     ?? null,
+    preferences:       extracted.preferences       ?? existingContext.preferences       ?? null,
+  }
+
+  const missing_required = INTAKE_REQUIRED.filter((f) => {
+    const v = trip_context[f]
+    if (!v && v !== 0) return true
     if (f === 'trip_duration_days' && (!Number.isFinite(Number(v)) || Number(v) < 1)) return true
     return false
   })
+
+  const missing_optional = INTAKE_OPTIONAL.filter((f) => !trip_context[f])
+
+  return {
+    trip_context,
+    ready_to_plan: missing_required.length === 0,
+    missing_required,
+    missing_optional,
+  }
+}
+
+export async function generateFollowUp(tripContext, missingRequired, missingOptional, history, opts) {
+  const known = Object.entries(tripContext)
+    .filter(([, v]) => v != null)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join('; ')
+
+  const recentUser = history
+    .filter((m) => m.role === 'user')
+    .slice(-2)
+    .map((m) => m.content)
+    .join(' / ')
+
+  const system =
+    'You are a friendly travel assistant in a conversation. Ask for the missing trip information in a warm, natural way. One or two short sentences max. No bullet lists, no greeting.'
+
+  const prompt = `Known details: ${known || 'nothing yet'}
+Still needed to plan the trip: ${missingRequired.join(', ')}${missingOptional.length ? ` (also useful but optional: ${missingOptional.join(', ')})` : ''}
+${recentUser ? `User just said: "${recentUser}"` : ''}
+Write a natural follow-up question.`
+
+  return await ollamaGenerate(system, prompt, opts)
+}
+
+export async function generateReadyConfirmation(tripContext, opts) {
+  const system =
+    'You are a friendly travel assistant. In one short sentence, confirm you have all the details and are now searching. Be warm and brief.'
+  const prompt = `Trip: ${tripContext.departure_city || tripContext.departure_iata} → ${tripContext.destination_name}, ${tripContext.trip_duration_days} day(s) from ${tripContext.outbound_date || 'soon'}.`
+  return await ollamaGenerate(system, prompt, opts)
+}
+
+export function fillDefaults(tripContext) {
+  const info = { ...tripContext }
+  if (!info.outbound_date) info.outbound_date = daysFromNow(7)
+  return info
 }
 
 export async function searchFlights(departureIata, arrivalIata, outboundDate, returnDate) {

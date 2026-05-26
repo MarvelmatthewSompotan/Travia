@@ -103,13 +103,11 @@ describe('Planner → sendMessage workflow', () => {
       pathMessages: [],
       allMessages: [],
       streaming: null,
-      pendingTrip: null,
       status: '',
       error: null,
       busy: false,
       sessionId: null,
       sendMessage: vi.fn(),
-      confirmPendingTrip: vi.fn(),
       selectPlanForRefine: vi.fn(),
       editMessage: vi.fn(),
       regenerateAssistant: vi.fn(),
@@ -141,23 +139,6 @@ describe('Planner → sendMessage workflow', () => {
     expect(bubbles[1].textContent).toBe('Here are your plans')
   })
 
-  it('ConfirmForm submitting calls confirmPendingTrip with filled data', () => {
-    const confirmPendingTrip = vi.fn()
-    const pendingTrip = {
-      info: { departure_iata: null, arrival_iata: 'DPS', destination_name: 'Bali', trip_duration_days: null, outbound_date: null },
-      missing: ['departure_iata', 'trip_duration_days'],
-      parentUserId: 1,
-    }
-    render(<Planner chat={makeChat({ pendingTrip, confirmPendingTrip })} savedPlanKeys={new Set()} onSavePlan={vi.fn()} />)
-
-    fireEvent.change(screen.getByLabelText(/Departure airport/i), { target: { value: 'MDC', name: 'departure_iata' } })
-    fireEvent.change(screen.getByLabelText(/Trip length/i), { target: { value: '3', name: 'trip_duration_days' } })
-    fireEvent.submit(screen.getByRole('button', { name: /Continue/i }).closest('form'))
-
-    expect(confirmPendingTrip).toHaveBeenCalledWith(
-      expect.objectContaining({ departure_iata: 'MDC', trip_duration_days: 3 })
-    )
-  })
 })
 
 // ── ChatMessage editing within Planner ───────────────────────────────────────
@@ -171,8 +152,8 @@ describe('Planner → ChatMessage edit workflow', () => {
       allMessages: [
         { id: 1, role: 'user', content: 'Original text', plan_snapshot: null, state_snapshot: null, parent_id: null },
       ],
-      streaming: null, pendingTrip: null, status: '', error: null, busy: false, sessionId: null,
-      sendMessage: vi.fn(), confirmPendingTrip: vi.fn(), selectPlanForRefine: vi.fn(),
+      streaming: null, status: '', error: null, busy: false, sessionId: null,
+      sendMessage: vi.fn(), selectPlanForRefine: vi.fn(),
       editMessage, regenerateAssistant: vi.fn(), switchBranch: vi.fn(), stop: vi.fn(),
     }
     render(<Planner chat={chat} savedPlanKeys={new Set()} onSavePlan={vi.fn()} />)
