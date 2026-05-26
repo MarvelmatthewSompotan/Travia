@@ -2,6 +2,7 @@ import {
   MOCK_FLIGHTS,
   MOCK_HOTELS,
   MOCK_PLACES,
+  MOCK_TRIPADVISOR_PLACES,
   MOCK_TRIP_INFO,
 } from './mockData.js'
 
@@ -309,6 +310,56 @@ export async function searchHotels(destinationName, checkIn, checkOut) {
   }))
 }
 
+export async function searchTripadvisor(destinationName) {
+  if (MOCK) return MOCK_TRIPADVISOR_PLACES
+
+  const params = new URLSearchParams({
+    engine: 'tripadvisor',
+    q: `things to do in ${destinationName}`,
+    api_key: getApiKey(),
+  })
+
+  const res = await fetch(`${SEARCHAPI_BASE}?${params}`)
+  if (!res.ok) return []
+
+  const data = await res.json()
+  const results = data.results || data.attractions || data.properties || []
+  return results.slice(0, 15).map((r) => ({
+    name: r.name || r.title || '',
+    tripadvisor_rating: r.rating ?? null,
+    tripadvisor_review_count: r.num_reviews ?? r.review_count ?? null,
+    review_snippets: (r.reviews || [])
+      .slice(0, 3)
+      .map((rv) => (typeof rv === 'string' ? rv : rv.text || rv.snippet || '').trim())
+      .filter(Boolean),
+  }))
+}
+
+function matchTripadvisorPlace(place, taResults) {
+  const a = place.name.toLowerCase()
+  return taResults.find((r) => {
+    const b = r.name.toLowerCase()
+    if (b === a || b.includes(a) || a.includes(b)) return true
+    return b.split(/\s+/).some((w) => w.length > 4 && a.includes(w))
+  }) || null
+}
+
+export async function enrichPlacesWithReviews(places, destinationName) {
+  if (!places?.length) return places
+  const taResults = await searchTripadvisor(destinationName).catch(() => [])
+  if (!taResults.length) return places
+  return places.map((place) => {
+    const match = matchTripadvisorPlace(place, taResults)
+    if (!match) return place
+    return {
+      ...place,
+      tripadvisor_rating: match.tripadvisor_rating,
+      tripadvisor_review_count: match.tripadvisor_review_count,
+      review_snippets: match.review_snippets,
+    }
+  })
+}
+
 const EXPERIENCE_BIAS = {
   balanced:   'Pick the best overall combination of quality, price, and variety.',
   budget:     'Minimize total cost. Maximize review quality per dollar. Avoid premium options.',
@@ -472,10 +523,15 @@ export async function fetchTripOptions(info) {
     ? flightsResult.value
     : { items: [], error: 'Flight search failed.' }
 
+  const rawPlaces = placesResult.status === 'fulfilled' ? placesResult.value : []
+  const places = rawPlaces.length
+    ? await enrichPlacesWithReviews(rawPlaces, info.destination_name).catch(() => rawPlaces)
+    : []
+
   return {
     flights: flightsData.items,
     flightError: flightsData.error,
-    places: placesResult.status === 'fulfilled' ? placesResult.value : [],
+    places,
     hotels: hotelsResult.status === 'fulfilled' ? hotelsResult.value : [],
   }
 }

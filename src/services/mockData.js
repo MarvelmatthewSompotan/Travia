@@ -129,6 +129,57 @@ export const MOCK_PLACES = [
   },
 ]
 
+// ── Tripadvisor enrichment fixtures ─────────────────────────────────────────
+// Shapes must match what searchTripadvisor returns.
+// Names must align with MOCK_PLACES so matchTripadvisorPlace() can merge them.
+export const MOCK_TRIPADVISOR_PLACES = [
+  {
+    name: 'Tanah Lot Temple',
+    tripadvisor_rating: 4.8,
+    tripadvisor_review_count: 12400,
+    review_snippets: [
+      'One of the most iconic spots in Bali — stunning at sunset.',
+      'Crowds can be heavy but absolutely worth it for the views.',
+    ],
+  },
+  {
+    name: 'Seminyak Beach',
+    tripadvisor_rating: 4.5,
+    tripadvisor_review_count: 6800,
+    review_snippets: [
+      'Great beach clubs and the sunset here is magical.',
+      'Cleaner and more upscale than Kuta Beach.',
+    ],
+  },
+  {
+    name: 'Ubud Monkey Forest',
+    tripadvisor_rating: 4.4,
+    tripadvisor_review_count: 18200,
+    review_snippets: [
+      "Don't bring food in — the monkeys are quick!",
+      'Magical place, especially early in the morning.',
+    ],
+  },
+  {
+    name: 'Tegallalang Rice Terraces',
+    tripadvisor_rating: 4.5,
+    tripadvisor_review_count: 10900,
+    review_snippets: [
+      'Breathtaking views of the layered terraces.',
+      'Go early to beat the tour groups.',
+    ],
+  },
+  {
+    name: 'Jimbaran Seafood Market',
+    tripadvisor_rating: 4.3,
+    tripadvisor_review_count: 4200,
+    review_snippets: [
+      'Fresh seafood grilled right on the beach — unforgettable.',
+      'The grilled fish and prawns are excellent value.',
+    ],
+  },
+]
+
 // ── Streaming narrative ──────────────────────────────────────────────────────
 // Emitted token-by-token by ollamaStream() in mock mode so the streaming UI runs.
 export const MOCK_NARRATIVE =
