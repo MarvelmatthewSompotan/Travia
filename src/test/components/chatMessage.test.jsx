@@ -106,7 +106,7 @@ describe('ChatMessage — assistant role (trip plan card)', () => {
     role: 'assistant',
     content: 'Here is your trip plan',
     plan_snapshot: [selectedPlan],
-    state_snapshot: { selected_plan: selectedPlan, cached_options: {}, trip_context: {} },
+    state_snapshot: { current_plan: selectedPlan, cached_options: {}, trip_context: {} },
     parent_id: null,
   }
 

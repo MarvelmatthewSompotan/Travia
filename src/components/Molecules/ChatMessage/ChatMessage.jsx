@@ -77,7 +77,7 @@ function AssistantMessage({
 }) {
   const [openPlanIndex, setOpenPlanIndex] = useState(null)
   const plans = message.plan_snapshot || []
-  const hasPlan = plans.length >= 1 && message.state_snapshot?.selected_plan
+  const hasPlan = plans.length >= 1 && message.state_snapshot?.current_plan
   const content = isStreaming ? streamingContent : message.content
 
   if (openPlanIndex != null && plans[openPlanIndex]) {
