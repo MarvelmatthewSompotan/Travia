@@ -98,30 +98,59 @@ function HotelSection({ hotel }) {
 }
 
 function PlacesSection({ places }) {
+  const hasAnyReviews = places?.some((p) => p.review_snippets?.length > 0)
+
   return (
     <section className="plan-section">
       <h3 className="plan-section__heading">Itinerary</h3>
       {places && places.length > 0 ? (
-        <ol className="places-timeline">
-          {places.map((place, i) => (
-            <li key={i} className="place-node">
-              <span className="place-node__marker">{i + 1}</span>
-              <div className="place-node__body">
-                <p className="place-node__name">{place.name}</p>
-                <p className="place-node__meta">
-                  {place.rating != null && (
-                    <span>★ {place.rating}{place.reviews != null ? ` (${place.reviews})` : ''}</span>
-                  )}
-                  {place.price && <span>{place.price}</span>}
-                  {place.type && <span>{place.type}</span>}
-                </p>
-                {place.description && (
-                  <p className="place-node__desc">{place.description}</p>
-                )}
+        <>
+          <ol className="places-timeline">
+            {places.map((place, i) => {
+              const displayRating = place.tripadvisor_rating ?? place.rating
+              const reviewCount = place.tripadvisor_review_count ?? place.reviews
+              return (
+                <li key={i} className="place-node">
+                  <span className="place-node__marker">{i + 1}</span>
+                  <div className="place-node__body">
+                    <p className="place-node__name">{place.name}</p>
+                    <p className="place-node__meta">
+                      {displayRating != null && (
+                        <span>★ {displayRating}{reviewCount != null ? ` (${Number(reviewCount).toLocaleString()})` : ''}</span>
+                      )}
+                      {place.price && <span>{place.price}</span>}
+                      {place.type && <span>{place.type}</span>}
+                    </p>
+                    {place.description && (
+                      <p className="place-node__desc">{place.description}</p>
+                    )}
+                    {place.review_snippets?.length > 0 && (
+                      <p className="place-node__snippet">"{place.review_snippets[0]}"</p>
+                    )}
+                  </div>
+                </li>
+              )
+            })}
+          </ol>
+
+          {hasAnyReviews && (
+            <details className="reviews-section">
+              <summary className="reviews-section__toggle">Traveller reviews</summary>
+              <div className="reviews-section__body">
+                {places.filter((p) => p.review_snippets?.length > 0).map((place, i) => (
+                  <div key={i} className="reviews-place">
+                    <p className="reviews-place__name">{place.name}</p>
+                    <ul className="reviews-place__list">
+                      {place.review_snippets.map((snippet, j) => (
+                        <li key={j} className="reviews-place__item">"{snippet}"</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
               </div>
-            </li>
-          ))}
-        </ol>
+            </details>
+          )}
+        </>
       ) : (
         <p className="detail-empty">No places found for this destination.</p>
       )}
