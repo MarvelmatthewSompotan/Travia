@@ -7,5 +7,9 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: './src/test/setup.js',
+    env: {
+      VITE_MOCK_MODE: 'false',
+      VITE_SEARCHAPI_KEY: 'test-key',
+    },
   },
 })
