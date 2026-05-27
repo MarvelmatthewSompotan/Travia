@@ -3,9 +3,7 @@ import {
   MOCK_HOTELS,
   MOCK_NARRATIVE,
   MOCK_PLACES,
-  MOCK_READY_CONFIRMATION,
   MOCK_TRIPADVISOR_PLACES,
-  MOCK_TRIP_INFO,
 } from './mockData.js'
 
 const MOCK = import.meta.env.VITE_MOCK_MODE === 'true'
@@ -122,15 +120,6 @@ export async function ollamaStream(system, prompt, onChunk, { signal } = {}) {
 }
 
 export async function extractAndMergeTripInfo(conversationHistory, existingContext = {}, opts) {
-  if (MOCK) {
-    return {
-      trip_context: { ...MOCK_TRIP_INFO },
-      ready_to_plan: true,
-      missing_required: [],
-      missing_optional: [],
-    }
-  }
-
   const today = new Date().toISOString().split('T')[0]
   const convoText = conversationHistory
     .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
@@ -210,7 +199,6 @@ Write a natural follow-up question.`
 }
 
 export async function generateReadyConfirmation(tripContext, opts) {
-  if (MOCK) return MOCK_READY_CONFIRMATION
   const system =
     'You are a friendly travel assistant. In one short sentence, confirm you have all the details and are now searching. Be warm and brief.'
   const prompt = `Trip: ${tripContext.departure_city || tripContext.departure_iata} → ${tripContext.destination_name}, ${tripContext.trip_duration_days} day(s) from ${tripContext.outbound_date || 'soon'}.`
