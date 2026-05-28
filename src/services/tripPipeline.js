@@ -5,6 +5,8 @@ import {
   MOCK_PLACES,
   MOCK_TRIPADVISOR_PLACES,
 } from './mockData.js'
+import { computeConfidence, CONFIDENCE_THRESHOLD } from './confidenceScore.js'
+import { inferAirport, inferDatesFromSeason, inferTripLength } from './inferDefaults.js'
 
 const MOCK = import.meta.env.VITE_MOCK_MODE === 'true'
 
@@ -125,22 +127,24 @@ export async function extractAndMergeTripInfo(conversationHistory, existingConte
     .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
     .join('\n')
 
-  const system = `You extract travel details from a conversation. Today is ${today}.
-Return ONLY valid JSON with these exact fields (null when not stated — never guess):
-- "departure_iata": 3-letter airport IATA for the origin (e.g. Manado="MDC", Jakarta="CGK", Bali="DPS"). Never use metro codes.
+  const system = `You extract travel details from a conversation and infer as much as possible. Today is ${today}.
+Be AGGRESSIVE about inference — if someone says "Bali" infer DPS airport. "Jakarta" → CGK. "Manado" → MDC. "a week" → 7 days.
+Return ONLY valid JSON with these exact fields:
+- "departure_iata": 3-letter IATA for origin airport. Infer from any city/region mention.
 - "departure_city": origin city name, or null
-- "arrival_iata": 3-letter airport IATA for the destination (e.g. Tokyo="HND", Bangkok="BKK", Seoul="ICN"). Never use metro codes.
-- "destination_name": full destination name, e.g. "Bali, Indonesia", or null
-- "trip_duration_days": integer number of days, or null
-- "outbound_date": departure date as YYYY-MM-DD; if only a month or relative time given, resolve to a concrete FUTURE date (use 15th of that month); null if not mentioned
-- "preferences": short text about the kind of trip (beaches, food, museums…), or null`
+- "arrival_iata": 3-letter IATA for destination airport. Infer from any destination mention.
+- "destination_name": full destination name e.g. "Bali, Indonesia", or null
+- "trip_duration_days": integer days. Infer: "a week"=7, "weekend"=2, "long weekend"=3, "10 days"=10, "a few days"=3. Default 5 if genuinely unknown.
+- "outbound_date": YYYY-MM-DD. Resolve relative references to a concrete FUTURE date. "Next month" → 15th of next month. "In July" → July 15 of nearest future year. Null only if absolutely no hint.
+- "preferences": trip style and interests, or null
+Return null only when there is truly zero basis for inference.`
 
   const existingText = Object.entries(existingContext)
     .filter(([, v]) => v != null)
     .map(([k, v]) => `${k}=${v}`)
     .join(', ')
 
-  const prompt = `${existingText ? `Previously known: ${existingText}\n\n` : ''}Conversation:\n${convoText}\n\nExtract or update the trip details. Preserve previously known values unless the conversation explicitly changes them.`
+  const prompt = `${existingText ? `Previously known: ${existingText}\n\n` : ''}Conversation:\n${convoText}\n\nExtract or update trip details. Infer aggressively. Preserve previously known values unless the conversation explicitly changes them.`
 
   const text = await ollamaGenerate(system, prompt, opts)
   const raw = extractJsonObject(text)
@@ -149,14 +153,17 @@ Return ONLY valid JSON with these exact fields (null when not stated — never g
   try { extracted = raw ? JSON.parse(raw) : {} } catch { extracted = {} }
 
   const trip_context = {
-    departure_iata:    extracted.departure_iata    ?? existingContext.departure_iata    ?? null,
-    departure_city:    extracted.departure_city    ?? existingContext.departure_city    ?? null,
-    arrival_iata:      extracted.arrival_iata      ?? existingContext.arrival_iata      ?? null,
-    destination_name:  extracted.destination_name  ?? existingContext.destination_name  ?? null,
+    departure_iata:     extracted.departure_iata     ?? existingContext.departure_iata     ?? null,
+    departure_city:     extracted.departure_city     ?? existingContext.departure_city     ?? null,
+    arrival_iata:       extracted.arrival_iata       ?? existingContext.arrival_iata       ?? null,
+    destination_name:   extracted.destination_name   ?? existingContext.destination_name   ?? null,
     trip_duration_days: extracted.trip_duration_days ?? existingContext.trip_duration_days ?? null,
-    outbound_date:     extracted.outbound_date     ?? existingContext.outbound_date     ?? null,
-    preferences:       extracted.preferences       ?? existingContext.preferences       ?? null,
+    outbound_date:      extracted.outbound_date      ?? existingContext.outbound_date      ?? null,
+    preferences:        extracted.preferences        ?? existingContext.preferences        ?? null,
   }
+
+  const confidence = computeConfidence(trip_context)
+  const ready_to_plan = confidence >= CONFIDENCE_THRESHOLD
 
   const missing_required = INTAKE_REQUIRED.filter((f) => {
     const v = trip_context[f]
@@ -169,7 +176,8 @@ Return ONLY valid JSON with these exact fields (null when not stated — never g
 
   return {
     trip_context,
-    ready_to_plan: missing_required.length === 0,
+    confidence,
+    ready_to_plan,
     missing_required,
     missing_optional,
   }
@@ -187,26 +195,40 @@ export async function generateFollowUp(tripContext, missingRequired, missingOpti
     .map((m) => m.content)
     .join(' / ')
 
-  const system =
-    'You are a friendly travel assistant in a conversation. Ask for the missing trip information in a warm, natural way. One or two short sentences max. No bullet lists, no greeting.'
+  const critical = missingRequired.slice(0, 2)
 
-  const prompt = `Known details: ${known || 'nothing yet'}
-Still needed to plan the trip: ${missingRequired.join(', ')}${missingOptional.length ? ` (also useful but optional: ${missingOptional.join(', ')})` : ''}
+  const system =
+    'You are a friendly travel assistant. Ask ONLY for the most critical missing trip details. Never ask about optional things like preferences. Max 1-2 short sentences. No bullet lists, no greeting, no filler.'
+
+  const prompt = `Known: ${known || 'nothing yet'}
+Critical gaps (ask about at most 2): ${critical.join(', ')}
 ${recentUser ? `User just said: "${recentUser}"` : ''}
-Write a natural follow-up question.`
+Write a single natural follow-up question. Ask ONLY about the critical gaps above.`
 
   return await ollamaGenerate(system, prompt, { ...opts, json: false })
 }
 
 export async function generateReadyConfirmation(tripContext, opts) {
   const system =
-    'You are a friendly travel assistant. In one short sentence, confirm you have all the details and are now searching. Be warm and brief.'
+    'You are a friendly travel assistant. In one short sentence, say you have all the details and are searching right now. Do NOT ask for confirmation — just announce and go. Be warm and direct.'
   const prompt = `Trip: ${tripContext.departure_city || tripContext.departure_iata} → ${tripContext.destination_name}, ${tripContext.trip_duration_days} day(s) from ${tripContext.outbound_date || 'soon'}.`
   return await ollamaGenerate(system, prompt, { ...opts, json: false })
 }
 
 export function fillDefaults(tripContext) {
   const info = { ...tripContext }
+  if (!info.departure_iata && info.departure_city) {
+    info.departure_iata = inferAirport(info.departure_city)
+  }
+  if (!info.arrival_iata && info.destination_name) {
+    info.arrival_iata = inferAirport(info.destination_name)
+  }
+  if (!info.trip_duration_days) {
+    info.trip_duration_days = inferTripLength(info.preferences) ?? 5
+  }
+  if (!info.outbound_date && info.preferences) {
+    info.outbound_date = inferDatesFromSeason(info.preferences)
+  }
   if (!info.outbound_date) info.outbound_date = daysFromNow(7)
   return info
 }
