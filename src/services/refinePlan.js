@@ -1,4 +1,4 @@
-import { ollamaGenerate } from './tripPipeline'
+import { llmGenerate } from './llmProvider'
 
 function extractJsonObject(text) {
   const obj = text.match(/\{[\s\S]*\}/)
@@ -47,7 +47,9 @@ ${transcript || '(none)'}
 
 NEW USER MESSAGE: ${userMessage}`
 
-  const system = `You refine an existing travel plan based on the user's message.
+  const today = new Date().toISOString().split('T')[0]
+
+  const system = `You refine an existing travel plan based on the user's message. Today is ${today}.
 Return ONLY a valid JSON object — no markdown, no code fences.
 
 You have TWO modes:
@@ -59,10 +61,11 @@ You have TWO modes:
 2) RERUN MODE: when the user changes destination, dates, or trip length so cached options no longer apply.
    Return: { "kind": "rerun", "changes": { "destination_name"?: "...", "outbound_date"?: "YYYY-MM-DD", "trip_duration_days"?: <int> }, "note": "<one short sentence>" }
    Only include keys in "changes" that actually changed.
+   For dates: resolve relative expressions like "november this year", "next month", "in 3 weeks" to a concrete YYYY-MM-DD using today's date above.
 
 If unsure, prefer REPICK. Never invent flights, hotels, or places — only use indices from the cached lists.`
 
-  const text = await ollamaGenerate(system, context, opts)
+  const text = await llmGenerate(system, context, opts)
   const raw = extractJsonObject(text)
   if (!raw) throw new Error('Could not parse refinement response.')
 

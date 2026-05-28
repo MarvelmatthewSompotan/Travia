@@ -1,12 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { refinePlan } from '../services/refinePlan'
 
-// Mock the Ollama call so tests don't hit a real server.
-vi.mock('../services/tripPipeline', () => ({
-  ollamaGenerate: vi.fn(),
+vi.mock('../services/llmProvider', () => ({
+  llmGenerate: vi.fn(),
+  llmStream: vi.fn(),
+  getProvider: vi.fn(() => 'ollama'),
+  setProvider: vi.fn(),
 }))
 
-import { ollamaGenerate } from '../services/tripPipeline'
+import { llmGenerate } from '../services/llmProvider'
 
 const baseArgs = {
   tripInfo: {
@@ -48,7 +50,7 @@ beforeEach(() => {
 
 describe('refinePlan — repick mode', () => {
   it('returns repick with parsed indices', async () => {
-    ollamaGenerate.mockResolvedValue(
+    llmGenerate.mockResolvedValue(
       '{"kind":"repick","flight":0,"hotel":1,"places":[0,1,2],"note":"Switched to Budget Inn"}'
     )
     const result = await refinePlan(baseArgs)
@@ -60,7 +62,7 @@ describe('refinePlan — repick mode', () => {
   })
 
   it('defaults to repick when kind is missing', async () => {
-    ollamaGenerate.mockResolvedValue(
+    llmGenerate.mockResolvedValue(
       '{"flight":1,"hotel":0,"places":[0,2],"note":"Changed flight"}'
     )
     const result = await refinePlan(baseArgs)
@@ -69,7 +71,7 @@ describe('refinePlan — repick mode', () => {
   })
 
   it('handles non-integer place indices by filtering them out', async () => {
-    ollamaGenerate.mockResolvedValue(
+    llmGenerate.mockResolvedValue(
       '{"kind":"repick","flight":0,"hotel":0,"places":[0,"x",2],"note":""}'
     )
     const result = await refinePlan(baseArgs)
@@ -78,7 +80,7 @@ describe('refinePlan — repick mode', () => {
   })
 
   it('falls back to 0 for flight/hotel when value is non-numeric', async () => {
-    ollamaGenerate.mockResolvedValue(
+    llmGenerate.mockResolvedValue(
       '{"kind":"repick","flight":"bad","hotel":null,"places":[],"note":""}'
     )
     const result = await refinePlan(baseArgs)
@@ -89,7 +91,7 @@ describe('refinePlan — repick mode', () => {
 
 describe('refinePlan — rerun mode', () => {
   it('returns rerun with valid changes', async () => {
-    ollamaGenerate.mockResolvedValue(
+    llmGenerate.mockResolvedValue(
       '{"kind":"rerun","changes":{"destination_name":"Tokyo, Japan","trip_duration_days":5},"note":"Changing destination"}'
     )
     const result = await refinePlan(baseArgs)
@@ -100,7 +102,7 @@ describe('refinePlan — rerun mode', () => {
   })
 
   it('keeps only valid outbound_date format', async () => {
-    ollamaGenerate.mockResolvedValue(
+    llmGenerate.mockResolvedValue(
       '{"kind":"rerun","changes":{"outbound_date":"2025-11-15"},"note":""}'
     )
     const result = await refinePlan(baseArgs)
@@ -108,7 +110,7 @@ describe('refinePlan — rerun mode', () => {
   })
 
   it('rejects malformed outbound_date', async () => {
-    ollamaGenerate.mockResolvedValue(
+    llmGenerate.mockResolvedValue(
       '{"kind":"rerun","changes":{"outbound_date":"Nov 15"},"note":""}'
     )
     const result = await refinePlan(baseArgs)
@@ -116,7 +118,7 @@ describe('refinePlan — rerun mode', () => {
   })
 
   it('rejects trip_duration_days < 1', async () => {
-    ollamaGenerate.mockResolvedValue(
+    llmGenerate.mockResolvedValue(
       '{"kind":"rerun","changes":{"trip_duration_days":0},"note":""}'
     )
     const result = await refinePlan(baseArgs)
@@ -124,7 +126,7 @@ describe('refinePlan — rerun mode', () => {
   })
 
   it('returns empty changes object when changes field is missing', async () => {
-    ollamaGenerate.mockResolvedValue('{"kind":"rerun","note":"ok"}')
+    llmGenerate.mockResolvedValue('{"kind":"rerun","note":"ok"}')
     const result = await refinePlan(baseArgs)
     expect(result.kind).toBe('rerun')
     expect(result.changes).toEqual({})
@@ -132,13 +134,13 @@ describe('refinePlan — rerun mode', () => {
 })
 
 describe('refinePlan — error cases', () => {
-  it('throws when Ollama returns no JSON object', async () => {
-    ollamaGenerate.mockResolvedValue('Sorry, I cannot help with that.')
+  it('throws when LLM returns no JSON object', async () => {
+    llmGenerate.mockResolvedValue('Sorry, I cannot help with that.')
     await expect(refinePlan(baseArgs)).rejects.toThrow('Could not parse')
   })
 
-  it('propagates Ollama network errors', async () => {
-    ollamaGenerate.mockRejectedValue(new Error('Ollama error 503'))
-    await expect(refinePlan(baseArgs)).rejects.toThrow('Ollama error 503')
+  it('propagates LLM network errors', async () => {
+    llmGenerate.mockRejectedValue(new Error('LLM error 503'))
+    await expect(refinePlan(baseArgs)).rejects.toThrow('LLM error 503')
   })
 })
