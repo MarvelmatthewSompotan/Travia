@@ -41,6 +41,32 @@
   margin-top: 2px;
 }
 
+.app-shell__llm-toggle {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 20px;
+  border: 1.5px solid;
+  cursor: pointer;
+  margin-top: 3px;
+  transition: opacity 0.15s;
+}
+.app-shell__llm-toggle:hover { opacity: 0.75; }
+.app-shell__llm-toggle--gemini {
+  color: #1a73e8;
+  border-color: #1a73e8;
+  background: rgba(26, 115, 232, 0.08);
+}
+.app-shell__llm-toggle--ollama {
+  color: #7c3aed;
+  border-color: #7c3aed;
+  background: rgba(124, 58, 237, 0.08);
+}
+
 .app-shell__logout {
   margin-left: auto;
   flex-shrink: 0;

@@ -2,10 +2,9 @@ import { Logo } from '../../Atoms/Logo/Logo'
 import { Avatar } from '../../Atoms/Avatar/Avatar'
 import './AppShell.css'
 
-export function AppShell({ sidebarMain, sidebarFooter, children, user, onLogout }) {
+export function AppShell({ sidebarMain, sidebarFooter, children, user, onLogout, llmProvider, onToggleLLM }) {
   const initial = user?.name ? user.name.charAt(0).toUpperCase() : '?'
   const displayName = user?.name ?? 'Guest'
-  const subtitle = user?.email ?? 'Local dev · Ollama 3.2'
 
   return (
     <div className="app-shell">
@@ -16,7 +15,16 @@ export function AppShell({ sidebarMain, sidebarFooter, children, user, onLogout 
           <Avatar initial={initial} />
           <div className="app-shell__who">
             {displayName}
-            <span>{subtitle}</span>
+            {onToggleLLM && (
+              <button
+                className={`app-shell__llm-toggle ${llmProvider === 'gemini' ? 'app-shell__llm-toggle--gemini' : 'app-shell__llm-toggle--ollama'}`}
+                type="button"
+                onClick={onToggleLLM}
+                title={`Switch to ${llmProvider === 'gemini' ? 'Ollama' : 'Gemini'}`}
+              >
+                {llmProvider === 'gemini' ? 'Gemini' : 'Ollama'}
+              </button>
+            )}
           </div>
           {onLogout && (
             <button className="app-shell__logout" type="button" onClick={onLogout} title="Sign out">

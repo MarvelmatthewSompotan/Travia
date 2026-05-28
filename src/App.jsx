@@ -9,6 +9,7 @@ import LoginPage from './components/Pages/LoginPage/LoginPage'
 import RegisterPage from './components/Pages/RegisterPage/RegisterPage'
 import { useChat, useSavedPlans, useSessionsList } from './hooks/useChat'
 import { useAuth } from './hooks/useAuth'
+import { useLLMProvider } from './hooks/useLLMProvider'
 
 const NAV_ITEMS = [
   { id: 'planner', label: 'AI Travel Planner' },
@@ -25,6 +26,7 @@ function AuthedApp({ auth }) {
   }
 
   const chat = useChat()
+  const { provider: llmProvider, toggle: toggleLLM } = useLLMProvider()
   const { sessions } = useSessionsList(chat.refreshNonce)
   const { plans: savedPlans, reload: reloadPlans, deletePlan } = useSavedPlans(chat.refreshNonce)
 
@@ -73,7 +75,7 @@ function AuthedApp({ auth }) {
   )
 
   return (
-    <AppShell sidebarMain={sidebarMain} user={auth.user} onLogout={handleLogout}>
+    <AppShell sidebarMain={sidebarMain} user={auth.user} onLogout={handleLogout} llmProvider={llmProvider} onToggleLLM={toggleLLM}>
       {activeTab === 'planner' && (
         <Planner
           chat={chat}
