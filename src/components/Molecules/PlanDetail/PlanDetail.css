@@ -95,6 +95,19 @@
   color: var(--sky-deep);
   font-weight: 600;
 }
+.detail-card__value--route {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.route-arrow { color: var(--ink-faint); }
+.route-iata {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--ink-faint);
+  font-weight: 400;
+}
 
 .detail-link {
   font-family: var(--font-body);

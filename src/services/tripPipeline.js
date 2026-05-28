@@ -425,6 +425,10 @@ export function assemblePlan(selection, tripInfo, flights, places, hotels, fligh
     const f = flights[fi]
     flight = {
       ...f,
+      departure_iata: tripInfo.departure_iata ?? null,
+      arrival_iata: tripInfo.arrival_iata ?? null,
+      departure_city: tripInfo.departure_city ?? null,
+      destination_name: tripInfo.destination_name ?? null,
       duration_hours: f.duration_min ? Math.round((f.duration_min / 60) * 10) / 10 : null,
       link: buildFlightLink(tripInfo.departure_iata, tripInfo.arrival_iata, tripInfo.outbound_date, tripInfo.return_date),
     }

@@ -23,6 +23,19 @@ function FlightSection({ flight, flightError }) {
             )}
             <span className="detail-card__value">{flight.airline}</span>
           </div>
+          {(flight.departure_iata || flight.arrival_iata) && (
+            <div className="detail-card__row">
+              <span className="detail-card__label">Route</span>
+              <span className="detail-card__value detail-card__value--route">
+                {flight.departure_city || flight.departure_iata}
+                {' '}
+                <span className="route-arrow">→</span>
+                {' '}
+                {flight.destination_name?.split(',')[0] || flight.arrival_iata}
+                <span className="route-iata"> ({flight.departure_iata} → {flight.arrival_iata})</span>
+              </span>
+            </div>
+          )}
           <div className="detail-card__row">
             <span className="detail-card__label">Departs</span>
             <span className="detail-card__value">{flight.departure_time || '—'}</span>
