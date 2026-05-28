@@ -11,6 +11,7 @@ import {
   generateReadyConfirmation,
   normalizeTripInfo,
   parseExperienceType,
+  searchFlights,
 } from '../services/tripPipeline'
 import { llmStream } from '../services/llmProvider'
 import { refinePlan } from '../services/refinePlan'
@@ -234,7 +235,9 @@ export function useChat({ onSessionsChanged } = {}) {
     const tripInfo = snapshot.trip_context
     let cached = snapshot.cached_options
     let currentPlan = snapshot.current_plan
-    dispatch({ type: 'set-status', status: 'Refining your plan…' })
+    const pendingRefinement = snapshot.pending_refinement || null
+
+    dispatch({ type: 'set-status', status: 'Thinking…' })
     const decision = await refinePlan({
       tripInfo,
       currentPlan,
@@ -243,21 +246,77 @@ export function useChat({ onSessionsChanged } = {}) {
       places: cached.places,
       chatHistory: historyMessages,
       userMessage,
+      pendingRefinement,
     }, { signal })
+
+    // General question — answer without touching the plan
+    if (decision.kind === 'chat') {
+      const reply = await streamNarrative(
+        'You are a knowledgeable travel assistant. Answer naturally and helpfully.',
+        decision.reply,
+        dispatch,
+        signal,
+      ).catch(() => decision.reply)
+      dispatch({ type: 'set-status', status: '' })
+      return await postAssistant({
+        sessionId,
+        parentUserId,
+        content: reply || decision.reply,
+        plan_snapshot: [currentPlan],
+        state_snapshot: {
+          ...snapshot,
+          pending_refinement: null,
+        },
+      })
+    }
+
+    // Needs clarification before running a full search
+    if (decision.kind === 'ask') {
+      dispatch({ type: 'set-status', status: '' })
+      return await postAssistant({
+        sessionId,
+        parentUserId,
+        content: decision.question,
+        plan_snapshot: [currentPlan],
+        state_snapshot: {
+          trip_context: tripInfo,
+          cached_options: cached,
+          current_plan: currentPlan,
+          experience_confirmed: true,
+          pending_refinement: decision.proposed_changes,
+        },
+      })
+    }
 
     let nextTripInfo = tripInfo
 
     if (decision.kind === 'rerun') {
       const merged = normalizeTripInfo({ ...tripInfo, ...decision.changes })
-      dispatch({ type: 'set-status', status: 'Searching flights, hotels & places for the new details…' })
-      const fresh = await fetchTripOptions(merged)
-      cached = { ...fresh, flightError: fresh.flightError }
       nextTripInfo = merged
+
+      if (decision.scope === 'flights') {
+        dispatch({ type: 'set-status', status: 'Searching for new flights…' })
+        const flightsResult = await searchFlights(
+          merged.departure_iata, merged.arrival_iata, merged.outbound_date, merged.return_date,
+        ).catch(() => ({ items: [], error: 'Flight search failed.' }))
+        cached = {
+          flights: flightsResult.items ?? [],
+          flightError: flightsResult.error ?? null,
+          places: cached.places,
+          hotels: cached.hotels,
+        }
+      } else {
+        dispatch({ type: 'set-status', status: 'Searching flights, hotels & places…' })
+        const fresh = await fetchTripOptions(merged)
+        cached = { flights: fresh.flights, flightError: fresh.flightError, places: fresh.places, hotels: fresh.hotels }
+      }
+
       dispatch({ type: 'set-status', status: 'Picking a fresh plan…' })
-      const sel = await generatePlan(merged, fresh, currentPlan?.experience_type || 'balanced', { signal })
-      currentPlan = assemblePlan(sel, merged, fresh.flights, fresh.places, fresh.hotels, fresh.flightError)
+      const sel = await generatePlan(nextTripInfo, cached, currentPlan?.experience_type || 'balanced', { signal })
+      currentPlan = assemblePlan(sel, nextTripInfo, cached.flights, cached.places, cached.hotels, cached.flightError)
       currentPlan.experience_type = sel.experience_type
     } else {
+      // repick
       const reSel = {
         title: currentPlan?.title || 'Refined plan',
         brief: currentPlan?.brief || '',
@@ -288,6 +347,7 @@ export function useChat({ onSessionsChanged } = {}) {
         cached_options: cached,
         current_plan: currentPlan,
         experience_confirmed: true,
+        pending_refinement: null,
       },
     })
   }
@@ -505,7 +565,7 @@ export function useChat({ onSessionsChanged } = {}) {
 
   const savePlan = useCallback(async () => {
     const { snapshot } = deriveStateAt(state.allMessages, state.headMessageId)
-    const plan = snapshot?.selected_plan
+    const plan = snapshot?.current_plan
     if (!plan || !state.sessionId) return null
     const key = planKeyOf(plan, state.sessionId)
     return await api.savePlan({
