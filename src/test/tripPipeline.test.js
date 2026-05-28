@@ -87,6 +87,45 @@ describe('fillDefaults', () => {
     expect(result.departure_iata).toBe('MDC')
     expect(result.trip_duration_days).toBe(5)
   })
+
+  it('infers departure_iata from departure_city when missing', () => {
+    const result = fillDefaults({ departure_city: 'Manado', destination_name: 'Bali' })
+    expect(result.departure_iata).toBe('MDC')
+  })
+
+  it('infers arrival_iata from destination_name when missing', () => {
+    const result = fillDefaults({ departure_iata: 'MDC', destination_name: 'Tokyo, Japan' })
+    expect(result.arrival_iata).toBe('HND')
+  })
+
+  it('defaults trip_duration_days to 5 when no length hint exists', () => {
+    const result = fillDefaults({ departure_iata: 'MDC', arrival_iata: 'DPS', destination_name: 'Bali' })
+    expect(result.trip_duration_days).toBe(5)
+  })
+
+  it('infers trip_duration_days from preferences "weekend"', () => {
+    const result = fillDefaults({
+      departure_iata: 'MDC', arrival_iata: 'DPS', destination_name: 'Bali',
+      preferences: 'quick weekend getaway',
+    })
+    expect(result.trip_duration_days).toBe(2)
+  })
+
+  it('infers trip_duration_days from preferences "a week"', () => {
+    const result = fillDefaults({
+      departure_iata: 'MDC', arrival_iata: 'DPS', destination_name: 'Bali',
+      preferences: 'a week of beach time',
+    })
+    expect(result.trip_duration_days).toBe(7)
+  })
+
+  it('infers outbound_date from preferences mentioning a month', () => {
+    const result = fillDefaults({
+      departure_iata: 'MDC', arrival_iata: 'DPS', destination_name: 'Bali',
+      preferences: 'in November',
+    })
+    expect(result.outbound_date).toBe('2025-11-15')
+  })
 })
 
 // ── normalizeTripInfo ─────────────────────────────────────────────────────────
@@ -216,6 +255,35 @@ describe('assemblePlan', () => {
     const selection = { title: 'T', brief: 'B', flight: 0, hotel: 0, places: [] }
     const plan = assemblePlan(selection, tripInfo, flights, places, hotels, null)
     expect(plan.total_price).toBe(180 + 285)
+  })
+
+  it('copies departure_iata and arrival_iata onto the flight', () => {
+    const selection = { title: 'T', brief: 'B', flight: 0, hotel: 0, places: [] }
+    const plan = assemblePlan(selection, tripInfo, flights, places, hotels, null)
+    expect(plan.flight.departure_iata).toBe('MDC')
+    expect(plan.flight.arrival_iata).toBe('DPS')
+  })
+
+  it('copies destination_name onto the flight for route display', () => {
+    const selection = { title: 'T', brief: 'B', flight: 0, hotel: 0, places: [] }
+    const plan = assemblePlan(selection, tripInfo, flights, places, hotels, null)
+    expect(plan.flight.destination_name).toBe('Bali')
+  })
+
+  it('copies departure_city onto the flight when present', () => {
+    const tripWithCity = { ...tripInfo, departure_city: 'Manado' }
+    const selection = { title: 'T', brief: 'B', flight: 0, hotel: 0, places: [] }
+    const plan = assemblePlan(selection, tripWithCity, flights, places, hotels, null)
+    expect(plan.flight.departure_city).toBe('Manado')
+  })
+
+  it('sets route fields to null when tripInfo lacks them', () => {
+    const selection = { title: 'T', brief: 'B', flight: 0, hotel: 0, places: [] }
+    const plan = assemblePlan(selection, {}, flights, places, hotels, null)
+    expect(plan.flight.departure_iata).toBeNull()
+    expect(plan.flight.arrival_iata).toBeNull()
+    expect(plan.flight.departure_city).toBeNull()
+    expect(plan.flight.destination_name).toBeNull()
   })
 })
 
@@ -375,6 +443,34 @@ describe('extractAndMergeTripInfo', () => {
     }))
     const result = await extractAndMergeTripInfo([{ role: 'user', content: 'test' }])
     expect(result.missing_required).toContain('trip_duration_days')
+  })
+
+  it('returns a confidence score between 0 and 1', async () => {
+    fetchSpy = mockFetch(fullExtraction)
+    const result = await extractAndMergeTripInfo([{ role: 'user', content: '3 days in Bali' }])
+    expect(typeof result.confidence).toBe('number')
+    expect(result.confidence).toBeGreaterThanOrEqual(0)
+    expect(result.confidence).toBeLessThanOrEqual(1)
+  })
+
+  it('marks ready_to_plan=true when confidence ≥ 0.7 (origin + destination + name)', async () => {
+    fetchSpy = mockFetch(JSON.stringify({
+      departure_iata: 'MDC', arrival_iata: 'DPS', destination_name: 'Bali',
+      trip_duration_days: null, outbound_date: null, preferences: null, departure_city: null,
+    }))
+    const result = await extractAndMergeTripInfo([{ role: 'user', content: 'Bali from Manado' }])
+    expect(result.confidence).toBeGreaterThanOrEqual(0.7)
+    expect(result.ready_to_plan).toBe(true)
+  })
+
+  it('marks ready_to_plan=false when confidence < 0.7 (destination only)', async () => {
+    fetchSpy = mockFetch(JSON.stringify({
+      departure_iata: null, arrival_iata: null, destination_name: 'Bali',
+      trip_duration_days: null, outbound_date: null, preferences: null, departure_city: null,
+    }))
+    const result = await extractAndMergeTripInfo([{ role: 'user', content: 'Bali' }])
+    expect(result.confidence).toBeLessThan(0.7)
+    expect(result.ready_to_plan).toBe(false)
   })
 })
 
