@@ -10,9 +10,9 @@ import {
   generatePlan,
   generateReadyConfirmation,
   normalizeTripInfo,
-  ollamaStream,
   parseExperienceType,
 } from '../services/tripPipeline'
+import { llmStream } from '../services/llmProvider'
 import { refinePlan } from '../services/refinePlan'
 import { buildPath, childrenOf, deepestDescendant } from '../services/chatTree'
 import { detectYouDecideIntent } from '../services/intentClassifier'
@@ -91,7 +91,7 @@ async function streamNarrative(system, prompt, dispatch, signal) {
   const tempId = `stream-${Date.now()}`
   dispatch({ type: 'streaming-start', tempId })
   try {
-    const full = await ollamaStream(system, prompt, (chunk) => {
+    const full = await llmStream(system, prompt, (chunk) => {
       dispatch({ type: 'streaming-chunk', chunk })
     }, { signal })
     return (full ?? '').trim()
