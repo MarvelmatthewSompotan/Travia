@@ -10,6 +10,8 @@ export default defineConfig({
     env: {
       VITE_MOCK_MODE: 'false',
       VITE_SEARCHAPI_KEY: 'test-key',
+      VITE_LLM_PROVIDER: 'ollama',
+      VITE_GEMINI_API_KEY: 'test-gemini-key',
     },
   },
 })
