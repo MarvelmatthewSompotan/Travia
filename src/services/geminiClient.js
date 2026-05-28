@@ -1,5 +1,5 @@
-const GEMINI_MODEL = 'gemini-1.5-flash'
-const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1/models'
+const GEMINI_MODEL = 'gemini-1.5-flash-latest'
+const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
 
 function getGeminiKey() {
   const key = import.meta.env.VITE_GEMINI_API_KEY
