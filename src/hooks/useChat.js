@@ -15,6 +15,9 @@ import {
 } from '../services/tripPipeline'
 import { refinePlan } from '../services/refinePlan'
 import { buildPath, childrenOf, deepestDescendant } from '../services/chatTree'
+import { detectYouDecideIntent } from '../services/intentClassifier'
+
+const MAX_INTAKE_TURNS = 3
 
 
 function initialState() {
@@ -182,6 +185,10 @@ export function useChat({ onSessionsChanged } = {}) {
     else if (snapshot?.current_plan && snapshot?.experience_confirmed) mode = 'refine'
 
     if (mode === 'intake') {
+      const intakeTurns = historyMessages.filter(
+        (m) => m.role === 'assistant' && !m.state_snapshot?.current_plan,
+      ).length
+
       dispatch({ type: 'set-status', status: 'Understanding your trip…' })
       const history = historyMessages.map((m) => ({ role: m.role, content: String(m.content || '') }))
       const existingContext = snapshot?.trip_context || {}
@@ -189,7 +196,10 @@ export function useChat({ onSessionsChanged } = {}) {
       const { trip_context, ready_to_plan, missing_required, missing_optional } =
         await extractAndMergeTripInfo(history, existingContext, { signal })
 
-      if (!ready_to_plan) {
+      const youDecide = detectYouDecideIntent(userMessage)
+      const forceRun = ready_to_plan || youDecide || intakeTurns >= MAX_INTAKE_TURNS
+
+      if (!forceRun) {
         dispatch({ type: 'set-status', status: '' })
         const followUp = await generateFollowUp(
           trip_context, missing_required, missing_optional, history, { signal },
