@@ -7,11 +7,11 @@ import {
 } from './mockData.js'
 import { computeConfidence, CONFIDENCE_THRESHOLD } from './confidenceScore.js'
 import { inferAirport, inferDatesFromSeason, inferTripLength } from './inferDefaults.js'
+import { llmGenerate, llmStream } from './llmProvider.js'
+export { ollamaGenerate } from './ollamaClient.js'
 
 const MOCK = import.meta.env.VITE_MOCK_MODE === 'true'
 
-const OLLAMA_MODEL = 'llama3.2'
-const OLLAMA_URL = 'http://localhost:11434/api/generate'
 const SEARCHAPI_BASE = 'https://www.searchapi.io/api/v1/search'
 
 const INTAKE_REQUIRED = ['departure_iata', 'arrival_iata', 'destination_name', 'trip_duration_days']
@@ -47,29 +47,7 @@ function buildFlightLink(depIata, arrIata, outboundDate, returnDate) {
   return `https://www.google.com/travel/flights?q=${encodeURIComponent(q)}`
 }
 
-export async function ollamaGenerate(system, prompt, { signal, json = true } = {}) {
-  const res = await fetch(OLLAMA_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    signal,
-    body: JSON.stringify({
-      model: OLLAMA_MODEL,
-      system,
-      prompt,
-      stream: false,
-      ...(json ? { format: 'json' } : {}),
-    }),
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Ollama error ${res.status}: ${text}`)
-  }
-  const data = await res.json()
-  return data.response
-}
-
-// Streams a free-form (non-JSON) response token-by-token.
-// Calls onChunk(deltaText) for each piece; resolves with the full text.
+// Mock stream — emits MOCK_NARRATIVE word-by-word so the streaming UI path runs.
 export async function ollamaStream(system, prompt, onChunk, { signal } = {}) {
   if (MOCK) {
     for (const word of MOCK_NARRATIVE.split(' ')) {
@@ -79,46 +57,7 @@ export async function ollamaStream(system, prompt, onChunk, { signal } = {}) {
     }
     return MOCK_NARRATIVE
   }
-
-  const res = await fetch(OLLAMA_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    signal,
-    body: JSON.stringify({
-      model: OLLAMA_MODEL,
-      system,
-      prompt,
-      stream: true,
-    }),
-  })
-  if (!res.ok || !res.body) {
-    const text = res.body ? await res.text() : ''
-    throw new Error(`Ollama error ${res.status}: ${text}`)
-  }
-
-  const reader = res.body.getReader()
-  const decoder = new TextDecoder()
-  let buf = ''
-  let full = ''
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buf += decoder.decode(value, { stream: true })
-    const lines = buf.split('\n')
-    buf = lines.pop() ?? ''
-    for (const line of lines) {
-      if (!line.trim()) continue
-      let json
-      try { json = JSON.parse(line) } catch { continue }
-      if (typeof json.response === 'string' && json.response.length > 0) {
-        full += json.response
-        onChunk?.(json.response)
-      }
-      if (json.done) return full
-    }
-  }
-  return full
+  return llmStream(system, prompt, onChunk, { signal })
 }
 
 export async function extractAndMergeTripInfo(conversationHistory, existingContext = {}, opts) {
@@ -146,7 +85,7 @@ Return null only when there is truly zero basis for inference.`
 
   const prompt = `${existingText ? `Previously known: ${existingText}\n\n` : ''}Conversation:\n${convoText}\n\nExtract or update trip details. Infer aggressively. Preserve previously known values unless the conversation explicitly changes them.`
 
-  const text = await ollamaGenerate(system, prompt, opts)
+  const text = await llmGenerate(system, prompt, opts)
   const raw = extractJsonObject(text)
 
   let extracted
@@ -205,14 +144,14 @@ Critical gaps (ask about at most 2): ${critical.join(', ')}
 ${recentUser ? `User just said: "${recentUser}"` : ''}
 Write a single natural follow-up question. Ask ONLY about the critical gaps above.`
 
-  return await ollamaGenerate(system, prompt, { ...opts, json: false })
+  return await llmGenerate(system, prompt, { ...opts, json: false })
 }
 
 export async function generateReadyConfirmation(tripContext, opts) {
   const system =
     'You are a friendly travel assistant. In one short sentence, say you have all the details and are searching right now. Do NOT ask for confirmation — just announce and go. Be warm and direct.'
   const prompt = `Trip: ${tripContext.departure_city || tripContext.departure_iata} → ${tripContext.destination_name}, ${tripContext.trip_duration_days} day(s) from ${tripContext.outbound_date || 'soon'}.`
-  return await ollamaGenerate(system, prompt, { ...opts, json: false })
+  return await llmGenerate(system, prompt, { ...opts, json: false })
 }
 
 export function fillDefaults(tripContext) {
@@ -431,7 +370,7 @@ Fields:
 - "places": array of 4-6 integer indices from PLACE OPTIONS
 Only use index numbers that exist in the lists above.`
 
-  const text = await ollamaGenerate(system, context, opts)
+  const text = await llmGenerate(system, context, opts)
   const raw = extractJsonObject(text)
   if (!raw) throw new Error('AI returned an invalid response. Please try again.')
 
@@ -448,7 +387,7 @@ export async function generateExperiencePrompt(plan, tripInfo, opts) {
 
 Ask the user what kind of vibe or experience type they want so you can tailor a new version. Naturally mention a few options like budget-friendly, luxury, food trip, adventure, relaxation, romantic, or cultural — but don't make it feel like a menu.`
 
-  return await ollamaGenerate(system, prompt, { ...opts, json: false })
+  return await llmGenerate(system, prompt, { ...opts, json: false })
 }
 
 export async function parseExperienceType(userMessage, opts) {
@@ -462,7 +401,7 @@ If unclear, use "balanced".
 Respond ONLY with valid JSON:
 {"experience_type": "balanced", "confidence": "high", "raw_preference": "user words"}`
 
-  const text = await ollamaGenerate(system, prompt, opts)
+  const text = await llmGenerate(system, prompt, opts)
   const raw = extractJsonObject(text)
   try {
     return raw ? JSON.parse(raw) : { experience_type: 'balanced', confidence: 'low', raw_preference: userMessage }
