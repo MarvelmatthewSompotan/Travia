@@ -57,13 +57,13 @@ export function inferDatesFromSeason(text) {
   const lower = text.toLowerCase()
   const today = new Date()
 
+  const pad = (n) => String(n).padStart(2, '0')
   if (lower.includes('next month')) {
     const d = new Date(today.getFullYear(), today.getMonth() + 1, 15)
-    return d.toISOString().split('T')[0]
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-15`
   }
   if (lower.includes('this month')) {
-    const d = new Date(today.getFullYear(), today.getMonth(), 15)
-    return d.toISOString().split('T')[0]
+    return `${today.getFullYear()}-${pad(today.getMonth() + 1)}-15`
   }
 
   for (const [keyword, month] of Object.entries(MONTH_MAP)) {
@@ -78,8 +78,8 @@ export function inferDatesFromSeason(text) {
 export function inferTripLength(text) {
   if (!text) return null
   const lower = text.toLowerCase()
-  if (lower.includes('weekend') || /\b2[\s-]day/.test(lower) || lower.includes('two day')) return 2
   if (/\b3[\s-]day/.test(lower) || lower.includes('three day') || lower.includes('long weekend')) return 3
+  if (lower.includes('weekend') || /\b2[\s-]day/.test(lower) || lower.includes('two day')) return 2
   if (/\b5[\s-]day/.test(lower) || lower.includes('five day')) return 5
   if (/\b10[\s-]day/.test(lower) || lower.includes('ten day')) return 10
   if (lower.includes('two week') || /\b2[\s-]week/.test(lower)) return 14
