@@ -8,6 +8,7 @@ import {
 import { computeConfidence, CONFIDENCE_THRESHOLD } from './confidenceScore.js'
 import { inferAirport, inferDatesFromSeason, inferTripLength } from './inferDefaults.js'
 import { llmGenerate, llmStream } from './llmProvider.js'
+import { analyzeReviews } from './mlInference.js'
 export { ollamaGenerate } from './ollamaClient.js'
 
 const MOCK = import.meta.env.VITE_MOCK_MODE === 'true'
@@ -45,6 +46,70 @@ function extractJsonObject(text) {
 function buildFlightLink(depIata, arrIata, outboundDate, returnDate) {
   const q = `Flights from ${depIata} to ${arrIata} on ${outboundDate} returning ${returnDate}`
   return `https://www.google.com/travel/flights?q=${encodeURIComponent(q)}`
+}
+
+function formatTripTypeLabel(rawLabel) {
+  const labels = {
+    COUPLES: 'Couples',
+    FAMILY: 'Families',
+    SOLO: 'Solo travelers',
+    BUSINESS: 'Business travelers',
+    FRIENDS: 'Groups of friends',
+  }
+  return labels[rawLabel] || rawLabel
+}
+
+async function processReviews(sampleTexts, tripadvisorTripTypes = null) {
+  if (!sampleTexts?.length) {
+    return {
+      red_flags: [],
+      has_dealbreakers: false,
+      has_warnings: false,
+      dominant_trip_type: null,
+      trip_type_source: 'none',
+      subscores: null,
+    }
+  }
+
+  try {
+    const analysis = await analyzeReviews(sampleTexts, tripadvisorTripTypes)
+
+    return {
+      red_flags: analysis.dealbreakers
+        .filter((r) => r.is_dealbreaker || r.is_warning)
+        .map((r, i) => ({
+          severity: r.label,
+          confidence: r.confidence,
+          snippet: sampleTexts[i]?.slice(0, 120) || '',
+        })),
+      has_dealbreakers: analysis.has_dealbreakers,
+      has_warnings: analysis.has_warnings,
+      dominant_trip_type: analysis.dominant_trip_type,
+      trip_type_source: analysis.dominant_trip_type ? 'tripadvisor' : 'none',
+      subscores: analysis.subscores,
+    }
+  } catch (err) {
+    console.warn('[processReviews] ML analysis failed, falling back to keyword scan:', err.message)
+
+    const dealBreakers = ['scam', 'dangerous', 'dirty', 'cockroach', 'stolen', 'unsafe', 'bedbug', 'rude']
+    const redFlags = []
+    for (const text of sampleTexts) {
+      const lower = text.toLowerCase()
+      for (const kw of dealBreakers) {
+        if (lower.includes(kw)) {
+          redFlags.push({ severity: 'DEALBREAKER', confidence: 1, snippet: text.slice(0, 120) })
+        }
+      }
+    }
+    return {
+      red_flags: [...new Map(redFlags.map((r) => [r.snippet, r])).values()],
+      has_dealbreakers: redFlags.length > 0,
+      has_warnings: false,
+      dominant_trip_type: null,
+      trip_type_source: 'keyword_fallback',
+      subscores: null,
+    }
+  }
 }
 
 // Mock stream — emits MOCK_NARRATIVE word-by-word so the streaming UI path runs.
@@ -293,6 +358,7 @@ export async function searchTripadvisor(destinationName) {
       .slice(0, 3)
       .map((rv) => (typeof rv === 'string' ? rv : rv.text || rv.snippet || '').trim())
       .filter(Boolean),
+    trip_types: r.trip_types ?? null,
   }))
 }
 
@@ -317,6 +383,7 @@ export async function enrichPlacesWithReviews(places, destinationName) {
       tripadvisor_rating: match.tripadvisor_rating,
       tripadvisor_review_count: match.tripadvisor_review_count,
       review_snippets: match.review_snippets,
+      trip_types: match.trip_types ?? null,
     }
   })
 }
@@ -416,7 +483,7 @@ export function pickIndex(value, list) {
   return i
 }
 
-export function assemblePlan(selection, tripInfo, flights, places, hotels, flightError) {
+export async function assemblePlan(selection, tripInfo, flights, places, hotels, flightError) {
   const fi = pickIndex(selection.flight, flights)
   const hi = pickIndex(selection.hotel, hotels)
 
@@ -455,13 +522,46 @@ export function assemblePlan(selection, tripInfo, flights, places, hotels, fligh
 
   const totalPrice = (flight?.price || 0) + (hotel?.total_price || 0)
 
+  // Run ML review analysis for each place in parallel
+  const enrichedPlaces = await Promise.all(
+    chosenPlaces.map(async (place) => {
+      const reviewed = await processReviews(
+        place.review_snippets || [],
+        place.trip_types || null,
+      )
+      return {
+        ...place,
+        review_data: reviewed,
+        subscores: reviewed.subscores,
+        dominant_trip_type: reviewed.dominant_trip_type,
+        trip_type_source: reviewed.trip_type_source,
+        best_for: reviewed.dominant_trip_type
+          ? formatTripTypeLabel(reviewed.dominant_trip_type)
+          : '',
+        red_flags: reviewed.red_flags,
+      }
+    })
+  )
+
+  // Hotel reviews — Google Hotels doesn't return review texts, so ML uses empty input
+  let enrichedHotel = hotel
+  if (hotel) {
+    const hotelReviewed = await processReviews(hotel.google_maps_reviews || [], null)
+    enrichedHotel = {
+      ...hotel,
+      review_data: hotelReviewed,
+      subscores: hotelReviewed.subscores,
+      red_flags: hotelReviewed.red_flags,
+    }
+  }
+
   return {
     title: selection.title,
     brief: selection.brief,
     flight,
     flightError: flight ? null : flightError,
-    hotel,
-    places: chosenPlaces,
+    hotel: enrichedHotel,
+    places: enrichedPlaces,
     total_price: totalPrice,
   }
 }
