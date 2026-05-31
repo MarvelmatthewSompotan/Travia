@@ -27,7 +27,7 @@ async function runPythonScript(scriptName, inputData) {
   }
 
   return new Promise((resolve, reject) => {
-    const python = spawn('python3', [scriptPath], { cwd: mlDir })
+    const python = spawn('/opt/anaconda3/envs/travia/bin/python3', [scriptPath], { cwd: mlDir })
 
     let stdout = ''
     let stderr = ''
