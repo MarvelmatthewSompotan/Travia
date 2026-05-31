@@ -282,3 +282,131 @@ details[open] .reviews-section__toggle::before { content: '▾ '; }
   cursor: default;
 }
 .plan-detail__save:disabled { opacity: 0.9; }
+
+/* ── Best-for badge ── */
+.best-for-badge {
+  display: inline-block;
+  margin-top: 5px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: var(--sky-soft);
+  color: var(--sky-deep);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: default;
+}
+
+/* ── Sub-score bars ── */
+.subscore-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.subscore-heading {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 4px;
+}
+
+.subscore-row {
+  display: grid;
+  grid-template-columns: 100px 1fr 28px;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.subscore-label {
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.subscore-track {
+  height: 6px;
+  background: var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.subscore-fill {
+  height: 100%;
+  background: var(--sky);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.subscore-value {
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: right;
+}
+
+.detail-card__subscores {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.place-node__subscores {
+  margin-top: 6px;
+}
+
+/* ── Red flags ── */
+.red-flags {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.red-flag-item {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: var(--r-sm, 6px);
+  font-size: 12px;
+}
+
+.red-flag-item--dealbreaker {
+  background: #fff1f0;
+  border-left: 3px solid #ff4d4f;
+}
+
+.red-flag-item--warning {
+  background: #fffbe6;
+  border-left: 3px solid #faad14;
+}
+
+.red-flag-severity {
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.red-flag-item--dealbreaker .red-flag-severity { color: #cf1322; }
+.red-flag-item--warning .red-flag-severity { color: #ad6800; }
+
+.red-flag-confidence {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+.red-flag-snippet {
+  font-style: italic;
+  color: var(--ink-soft);
+  font-size: 11.5px;
+  flex: 1 1 100%;
+  line-height: 1.4;
+}

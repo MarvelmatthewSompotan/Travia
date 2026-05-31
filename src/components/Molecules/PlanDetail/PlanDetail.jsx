@@ -11,6 +11,63 @@ function stopsLabel(stops) {
   return `${stops} stop${stops > 1 ? 's' : ''}`
 }
 
+const TRIP_TYPE_LABELS = {
+  COUPLES:  { label: 'Couples',           emoji: '💑' },
+  FAMILY:   { label: 'Families',          emoji: '👨‍👩‍👧' },
+  SOLO:     { label: 'Solo travelers',    emoji: '🎒' },
+  BUSINESS: { label: 'Business',          emoji: '💼' },
+  FRIENDS:  { label: 'Groups of friends', emoji: '👥' },
+}
+
+function BestForBadge({ dominantTripType, tripTypeSource }) {
+  if (!dominantTripType) return null
+  const info = TRIP_TYPE_LABELS[dominantTripType]
+  const label = info ? `${info.emoji} ${info.label}` : dominantTripType
+  const tooltip = tripTypeSource === 'tripadvisor' ? 'via TripAdvisor' : 'via Travia AI'
+  return (
+    <span className="best-for-badge" title={tooltip}>
+      Best for: {label}
+    </span>
+  )
+}
+
+function SubScoreBars({ subscores }) {
+  if (!subscores) return null
+  const entries = Object.entries(subscores)
+  if (!entries.length) return null
+  return (
+    <div className="subscore-bars">
+      {entries.map(([key, val]) => (
+        <div key={key} className="subscore-row">
+          <span className="subscore-label">{key}</span>
+          <div className="subscore-track">
+            <div
+              className="subscore-fill"
+              style={{ width: `${((val - 1) / 4) * 100}%` }}
+            />
+          </div>
+          <span className="subscore-value">{val.toFixed(1)}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function RedFlags({ redFlags }) {
+  if (!redFlags?.length) return null
+  return (
+    <div className="red-flags">
+      {redFlags.map((flag, i) => (
+        <div key={i} className={`red-flag-item red-flag-item--${flag.severity.toLowerCase()}`}>
+          <span className="red-flag-severity">{flag.severity}</span>
+          <span className="red-flag-confidence">{Math.round(flag.confidence * 100)}%</span>
+          {flag.snippet && <span className="red-flag-snippet">"{flag.snippet}"</span>}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function FlightSection({ flight, flightError }) {
   return (
     <section className="plan-section">
@@ -102,6 +159,13 @@ function HotelSection({ hotel }) {
               View hotel ↗
             </a>
           )}
+          {hotel.subscores && (
+            <div className="detail-card__subscores">
+              <p className="subscore-heading">Quality breakdown</p>
+              <SubScoreBars subscores={hotel.subscores} />
+            </div>
+          )}
+          <RedFlags redFlags={hotel.red_flags} />
         </div>
       ) : (
         <p className="detail-empty">Hotel data unavailable.</p>
@@ -134,12 +198,24 @@ function PlacesSection({ places }) {
                       {place.price && <span>{place.price}</span>}
                       {place.type && <span>{place.type}</span>}
                     </p>
+                    {place.best_for && (
+                      <BestForBadge
+                        dominantTripType={place.dominant_trip_type}
+                        tripTypeSource={place.trip_type_source}
+                      />
+                    )}
                     {place.description && (
                       <p className="place-node__desc">{place.description}</p>
                     )}
                     {place.review_snippets?.length > 0 && (
                       <p className="place-node__snippet">"{place.review_snippets[0]}"</p>
                     )}
+                    {place.subscores && (
+                      <div className="place-node__subscores">
+                        <SubScoreBars subscores={place.subscores} />
+                      </div>
+                    )}
+                    <RedFlags redFlags={place.red_flags} />
                   </div>
                 </li>
               )
