@@ -313,7 +313,7 @@ export function useChat({ onSessionsChanged } = {}) {
 
       dispatch({ type: 'set-status', status: 'Picking a fresh plan…' })
       const sel = await generatePlan(nextTripInfo, cached, currentPlan?.experience_type || 'balanced', { signal })
-      currentPlan = assemblePlan(sel, nextTripInfo, cached.flights, cached.places, cached.hotels, cached.flightError)
+      currentPlan = await assemblePlan(sel, nextTripInfo, cached.flights, cached.places, cached.hotels, cached.flightError)
       currentPlan.experience_type = sel.experience_type
     } else {
       // repick
@@ -325,7 +325,7 @@ export function useChat({ onSessionsChanged } = {}) {
         hotel: decision.hotel,
         places: decision.places,
       }
-      currentPlan = assemblePlan(reSel, tripInfo, cached.flights, cached.places, cached.hotels, cached.flightError)
+      currentPlan = await assemblePlan(reSel, tripInfo, cached.flights, cached.places, cached.hotels, cached.flightError)
       currentPlan.experience_type = reSel.experience_type
     }
 
@@ -358,7 +358,7 @@ export function useChat({ onSessionsChanged } = {}) {
     const cached = await fetchTripOptions(info)
     dispatch({ type: 'set-status', status: 'Building your trip plan…' })
     const selection = await generatePlan(info, cached, 'balanced', { signal })
-    const plan = assemblePlan(selection, info, cached.flights, cached.places, cached.hotels, cached.flightError)
+    const plan = await assemblePlan(selection, info, cached.flights, cached.places, cached.hotels, cached.flightError)
     plan.experience_type = 'balanced'
 
     // Stream plan presentation
@@ -394,7 +394,7 @@ export function useChat({ onSessionsChanged } = {}) {
 
     dispatch({ type: 'set-status', status: `Building ${experience_type} plan…` })
     const selection = await generatePlan(tripInfo, cached, experience_type, { signal })
-    const plan = assemblePlan(selection, tripInfo, cached.flights, cached.places, cached.hotels, cached.flightError)
+    const plan = await assemblePlan(selection, tripInfo, cached.flights, cached.places, cached.hotels, cached.flightError)
     plan.experience_type = experience_type
 
     // Auto-save this plan to the plans table
