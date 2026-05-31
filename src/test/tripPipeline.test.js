@@ -216,9 +216,9 @@ const tripInfo = {
 }
 
 describe('assemblePlan', () => {
-  it('assembles a plan with correct flight, hotel and places', () => {
+  it('assembles a plan with correct flight, hotel and places', async () => {
     const selection = { title: 'Best Pick', brief: 'Great', flight: 0, hotel: 0, places: [0, 1, 2] }
-    const plan = assemblePlan(selection, tripInfo, flights, places, hotels, null)
+    const plan = await assemblePlan(selection, tripInfo, flights, places, hotels, null)
 
     expect(plan.title).toBe('Best Pick')
     expect(plan.flight.airline).toBe('Garuda')
@@ -231,55 +231,55 @@ describe('assemblePlan', () => {
     expect(plan.flightError).toBeNull()
   })
 
-  it('falls back to price_per_night * nights when total_rate is null', () => {
+  it('falls back to price_per_night * nights when total_rate is null', async () => {
     const noTotalHotels = [{ ...hotels[0], total_rate: null, price_per_night: 100 }]
     const selection = { title: 'T', brief: 'B', flight: 0, hotel: 0, places: [0] }
-    const plan = assemblePlan(selection, tripInfo, flights, places, noTotalHotels, null)
+    const plan = await assemblePlan(selection, tripInfo, flights, places, noTotalHotels, null)
     expect(plan.hotel.total_price).toBe(300) // 100 * 3 nights
   })
 
-  it('deduplicates repeated place indices', () => {
+  it('deduplicates repeated place indices', async () => {
     const selection = { title: 'T', brief: 'B', flight: 0, hotel: 0, places: [0, 0, 1] }
-    const plan = assemblePlan(selection, tripInfo, flights, places, hotels, null)
+    const plan = await assemblePlan(selection, tripInfo, flights, places, hotels, null)
     expect(plan.places).toHaveLength(2)
   })
 
-  it('attaches flightError when no flights available', () => {
+  it('attaches flightError when no flights available', async () => {
     const selection = { title: 'T', brief: 'B', flight: 0, hotel: 0, places: [] }
-    const plan = assemblePlan(selection, tripInfo, [], places, hotels, 'No flights found')
+    const plan = await assemblePlan(selection, tripInfo, [], places, hotels, 'No flights found')
     expect(plan.flight).toBeNull()
     expect(plan.flightError).toBe('No flights found')
   })
 
-  it('computes total_price as flight.price + hotel.total_price', () => {
+  it('computes total_price as flight.price + hotel.total_price', async () => {
     const selection = { title: 'T', brief: 'B', flight: 0, hotel: 0, places: [] }
-    const plan = assemblePlan(selection, tripInfo, flights, places, hotels, null)
+    const plan = await assemblePlan(selection, tripInfo, flights, places, hotels, null)
     expect(plan.total_price).toBe(180 + 285)
   })
 
-  it('copies departure_iata and arrival_iata onto the flight', () => {
+  it('copies departure_iata and arrival_iata onto the flight', async () => {
     const selection = { title: 'T', brief: 'B', flight: 0, hotel: 0, places: [] }
-    const plan = assemblePlan(selection, tripInfo, flights, places, hotels, null)
+    const plan = await assemblePlan(selection, tripInfo, flights, places, hotels, null)
     expect(plan.flight.departure_iata).toBe('MDC')
     expect(plan.flight.arrival_iata).toBe('DPS')
   })
 
-  it('copies destination_name onto the flight for route display', () => {
+  it('copies destination_name onto the flight for route display', async () => {
     const selection = { title: 'T', brief: 'B', flight: 0, hotel: 0, places: [] }
-    const plan = assemblePlan(selection, tripInfo, flights, places, hotels, null)
+    const plan = await assemblePlan(selection, tripInfo, flights, places, hotels, null)
     expect(plan.flight.destination_name).toBe('Bali')
   })
 
-  it('copies departure_city onto the flight when present', () => {
+  it('copies departure_city onto the flight when present', async () => {
     const tripWithCity = { ...tripInfo, departure_city: 'Manado' }
     const selection = { title: 'T', brief: 'B', flight: 0, hotel: 0, places: [] }
-    const plan = assemblePlan(selection, tripWithCity, flights, places, hotels, null)
+    const plan = await assemblePlan(selection, tripWithCity, flights, places, hotels, null)
     expect(plan.flight.departure_city).toBe('Manado')
   })
 
-  it('sets route fields to null when tripInfo lacks them', () => {
+  it('sets route fields to null when tripInfo lacks them', async () => {
     const selection = { title: 'T', brief: 'B', flight: 0, hotel: 0, places: [] }
-    const plan = assemblePlan(selection, {}, flights, places, hotels, null)
+    const plan = await assemblePlan(selection, {}, flights, places, hotels, null)
     expect(plan.flight.departure_iata).toBeNull()
     expect(plan.flight.arrival_iata).toBeNull()
     expect(plan.flight.departure_city).toBeNull()

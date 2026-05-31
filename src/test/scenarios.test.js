@@ -306,7 +306,7 @@ describe('generatePlan → assemblePlan: full plan assembly per experience type'
       flight: 1, hotel: 2, places: [0,1,2,3],
     })
     const selection = await generatePlan(TRIP_INFO, cachedOptions, 'budget')
-    const plan = assemblePlan(selection, TRIP_INFO, FLIGHTS, PLACES, HOTELS, null)
+    const plan = await assemblePlan(selection, TRIP_INFO, FLIGHTS, PLACES, HOTELS, null)
 
     expect(plan.flight.airline).toBe('Lion Air')
     expect(plan.flight.price).toBe(95)
@@ -322,7 +322,7 @@ describe('generatePlan → assemblePlan: full plan assembly per experience type'
       flight: 0, hotel: 0, places: [0,1,2,3],
     })
     const selection = await generatePlan(TRIP_INFO, cachedOptions, 'luxury')
-    const plan = assemblePlan(selection, TRIP_INFO, FLIGHTS, PLACES, HOTELS, null)
+    const plan = await assemblePlan(selection, TRIP_INFO, FLIGHTS, PLACES, HOTELS, null)
 
     expect(plan.flight.airline).toBe('Garuda Indonesia')
     expect(plan.hotel.name).toBe('Seminyak Boutique Villas')
@@ -333,7 +333,7 @@ describe('generatePlan → assemblePlan: full plan assembly per experience type'
   it('plan includes a booking link when departure/arrival IATAs are present', async () => {
     fetchSpy = mockFetchJson({ title: 'T', brief: 'B', flight: 0, hotel: 0, places: [0,1,2] })
     const selection = await generatePlan(TRIP_INFO, cachedOptions, 'balanced')
-    const plan = assemblePlan(selection, TRIP_INFO, FLIGHTS, PLACES, HOTELS, null)
+    const plan = await assemblePlan(selection, TRIP_INFO, FLIGHTS, PLACES, HOTELS, null)
 
     expect(plan.flight.link).toContain('google.com/travel/flights')
     expect(plan.flight.link).toContain('MDC')
@@ -472,21 +472,21 @@ describe('refinePlan: destination and date change scenarios (rerun)', () => {
 // ── 7. assemblePlan edge cases ────────────────────────────────────────────────
 
 describe('assemblePlan: handles out-of-range indices gracefully', () => {
-  it('falls back to index 0 when flight index is beyond list length', () => {
+  it('falls back to index 0 when flight index is beyond list length', async () => {
     const selection = { title: 'T', brief: 'B', flight: 99, hotel: 0, places: [0] }
-    const plan = assemblePlan(selection, TRIP_INFO, FLIGHTS, PLACES, HOTELS, null)
+    const plan = await assemblePlan(selection, TRIP_INFO, FLIGHTS, PLACES, HOTELS, null)
     expect(plan.flight.airline).toBe(FLIGHTS[0].airline)
   })
 
-  it('falls back to index 0 when hotel index is beyond list length', () => {
+  it('falls back to index 0 when hotel index is beyond list length', async () => {
     const selection = { title: 'T', brief: 'B', flight: 0, hotel: 99, places: [0] }
-    const plan = assemblePlan(selection, TRIP_INFO, FLIGHTS, PLACES, HOTELS, null)
+    const plan = await assemblePlan(selection, TRIP_INFO, FLIGHTS, PLACES, HOTELS, null)
     expect(plan.hotel.name).toBe(HOTELS[0].name)
   })
 
-  it('skips out-of-range place indices silently', () => {
+  it('skips out-of-range place indices silently', async () => {
     const selection = { title: 'T', brief: 'B', flight: 0, hotel: 0, places: [0, 99, 2] }
-    const plan = assemblePlan(selection, TRIP_INFO, FLIGHTS, PLACES, HOTELS, null)
+    const plan = await assemblePlan(selection, TRIP_INFO, FLIGHTS, PLACES, HOTELS, null)
     expect(plan.places).toHaveLength(2) // index 99 is dropped
     expect(plan.places[0].name).toBe('Tanah Lot Temple')
     expect(plan.places[1].name).toBe('Ubud Monkey Forest')
